@@ -1,0 +1,327 @@
+\chapter{Introduction}
+
+\section{Internet}
+
+On a comme composants :
+
+\begin{itemize}
+	\item les hôtes, à la périphérie du réseau
+	\item des liens de communication
+	\item des routeurs, qui permettent la direction de paquets
+	\item des protocoles d'envoi et de réceptions de message. La documentation et la standardisation permettent l'interopérabilité.
+\end{itemize}
+
+Un réseau est cohérent et autonome s'il est administré et indépendant, tout en respectant les standards. Dans son ensemble, Internet n'est pas géré, ses sous-parties le sont.
+
+On peut voir Internet comme un ensemble de services (mails, messagerie instantanée, streaming, VoIP). Ils sont distribués, car échangent des informations entre eux, et peuvent être classés en 2 types :
+
+\begin{itemize}
+	\item les services fiables, orientés connexion, l'envoi du message de la source vers la destination est garanti (TCP) ;
+	\item les services non fiables, où on fait au mieux (UDP).
+\end{itemize}
+
+Un protocole définit le format et l'ordre des échanges entre deux ou plus entités communiquant, c'est le minimum pour l'interopérabilité et l'orchestration des messages (ordre des messages envoyés ou reçus, que faire lors de la réception d'un certain message, que répondre, etc).	
+
+\section{Réseau périphérique}
+
+Les systèmes d'extrémité sont les hôtes d'applications qui communiquent entre elles.	
+	
+Il y a 2 grands modèles de communication :
+
+\begin{itemize}
+	\item modèle client/serveur : un programme client est un programme tournant sur un système d'extrémité et qui envoie des requêtes et reçoit des réponses d'un programme serveur tournant sur un autre système d'extrémité ;
+	\item modèle peer-to-peer : un hôte est client et serveur à la fois. Le problème est que tout peut être mobile et/ou pas toujours en ligne. Un serveur est souvent nécessaire pour un usage minimal (pour savoir qui est en ligne, etc).
+\end{itemize}
+
+	\subsection{Réseaux d'accès}
+	
+	Ce sont les liens physiques qui connectent un système d'extrémité au premier routeur (dit routeur d'extrémité). La plupart des technologies d'accès reprennent des portions du réseau téléphonique traditionnel.
+
+Dans les technologiques qui permettent de se connecter, on utilise deux grandes métriques :
+
+\begin{itemize}
+	\item la bande-passante
+	\item le caractère dédié ou partagé
+\end{itemize}
+
+
+\paragraph{Dial-up modem}
+
+Accès réseau dédié : le signal est modulé par un modem (home dial-up modem) qui va être démodulé par un autre  modem (ISP modem) qui va permettre la transmission du signal sur Internet : le codage du signal est adapté au réseau téléphonique (numérique $\rightarrow$ analogique $\rightarrow$ numérique). C'est un modèle orienté connexion car elle est explicite et physique.
+
+La connexion est dite "dial-up" car le programme utilisateur compose le numéro (dial) de l'ISP.
+
+\dessin{2}
+
+Désavantages :
+
+\begin{itemize}
+	\item Les réseaux téléphoniques n'ont pas beaucoup de bande passante, seulement un spectre de fréquences audibles, pour les voix, entre 0 et 4 kHz. Si la cadence du signal binaire est trop grande, le système ne suit pas.
+	\item Le téléphone est inutilisable.
+\end{itemize}	
+
+Le signal binaire est transmis grâce à la modulation des composantes des signaux analogiques. Il y a trois types de modulation possible :
+
+\begin{itemize}
+	\item modulation d'amplitude, avec des valeurs hautes et basses
+	\item modulation de fréquence, avec des fréquences tantôt faibles tantôt élevées
+	\item modulation de phase, avec des décalages
+\end{itemize}
+
+\dessin{139}
+
+Un symbole est une modification du signal. Le baud est l'unité de mesure du nombre de symboles transmissibles par seconde. A ne pas confondre avec le nombre de bits par seconde, qui est un débit d'information.
+	
+On peut combiner les modulations de phase et d'amplitude : un symbole (ou baud) peut valoir 2 bits (car il y a 4 possibilités : 00, 01, 10 et 11). Idem pour un symbole de 4 bits et de 6 bits, en jouant sur l'amplitude et la fréquence.
+
+\dessin{95}
+
+$$\text{Débit de données} = \text{débit de baud} \times \text{nombre de bits par baud}$$
+
+La sinusoïde doit être au plus à 4 kHz, donc période max de 4 millièmes de secondes. Si on réduit trop l'intervalle de transmission (le débit de baud), on ne saura plus retrouver le symbole, la phase et l'amplitude étant incalculables. La limite du nombre de symboles à envoyer est au maximum le double de la période (Niquist) : si $H$ est la bande de fréquence du canal physique.
+
+$$\text{Débit de Baud } \leq 2 \times H$$
+
+On peut toujours augmenter le débit sur le nombre de bits par baud, qui n'est théoriquement pas limité. Cependant, le débit de donnée est limitée par le rapport signal/bruit :
+
+$$\text{Loi de Shannon : débit binaire} \leq H \times \log_2(1 + \frac{S}{N})$$
+
+Avec $S$ la puissance du signal et $N$ celle du bruit. Il y a toujours du bruit (thermique).
+
+On ne peut augmenter arbitrairement le nombre de bits par baud, car les symboles seront perturbés ; les points risquent de se déplacer sur la grille. Un décodeur effectue un maximum de vraisemblance pour déterminer la position du point, mais s'il n'y a pas assez d'espace il y a un risque d'erreur.  De plus, on est conditionné dans un cercle (l'amplitude dépend du nbr de watt à produire, qui n'est pas infini).
+
+Cependant, $\frac{S}{N}$ n'est jamais nul, il y a toujours moyen de transmettre de l'information.
+
+Le débit est aussi limité par la distance à laquelle on se trouve de la centrale téléphonique (atténuation du signal).
+
+\paragraph{DSL (Digital Subscriber Line)}
+
+Utilisation d'autres bandes de fréquences des lignes téléphoniques, fréquences qui dépendent des distances. Les canaux sont bi-directionnels (full-duplex) : on peut émettre, recevoir et téléphoner en même temps. On peut généralement monter à 1MHz. Généralement,
+
+\begin{itemize}
+	\item le flux descendant (download) dans la bande de 50kHz à 1 MHz
+	\item le flux ascendant (upload) dans la bande de 4kHz à 50 kHz
+	\item le flux téléphonique classique, de 0 à 4 kHz
+\end{itemize}
+
+\dessinS{3}{.55}
+Un DSLAM est un démultiplexeur qui sépare les signaux pour Internet et téléphonique.
+
+Les avantages par rapport à une connexion dial-up sont que les débits (également asymétriques) sont beaucoup plus élevés et que les utilisateurs peuvent téléphoner et utiliser le réseau en même temps. Il y a constamment une connexion au DSLAM de l'ISP.
+
+\paragraph{Modem câble, réseaux HFC}
+
+Utilisation du réseau de télédistribution, à base de câbles coaxiaux. Le système est HFC (hybrid fiber coax), c'est-à-dire qu'on utilise en plus de la fibre optique.
+
+%\dessin{4}
+	\dessinS{96}{.55}
+
+L'accès n'est pas point à point mais est partagé entre plusieurs utilisateurs, contrairement aux autres moyens de connexion.
+
+\paragraph{Fiber to the home}
+
+Idem que modem câble, mais l'arrivée du signal à la maison se fait par fibre optique (au lieu de coax).
+
+\dessinS{5}{.55}
+
+Généralement, les fibres sont partagées entre plusieurs résidences, la connexion est partagée. Il y a deux sortes de technologiques qui permettent le split entre les clients :
+
+\begin{itemize}
+	\item AON : active optical netorks (switched ethernet)
+	\item PON : passive optical networks : chaque maison possède un terminateur de réseau optique (ONT), qui est connecté à un splitter dédié (dans le voisinage). Le splitter combine les signaux en une seule fibre et l'envoit à l'OLT (optical line terminator), qui convertit les signaux optiques en signaux électriques. L'OLT est connecté à Internet via un routeur ; les utilisateurs ont accès avec un routeur connecté à l'ONT.
+\end{itemize}
+
+\paragraph{Ethernet}
+
+Utilisation de paires torsadées, connectant les utilisateurs à un switch ethernet.
+
+\dessin{6}
+
+\paragraph{Réseaux à accès sans-fil}
+
+Réseau partagés, connexion d'un point d'accès à un routeur. Potentiel killer : WiMAX.
+
+\subsection{Supports physiques}
+
+On distingue les supports matériels (guided media), qui propagent les signaux à travers du solide (fibre, coax) et les supports immatériels (unguided media), tels que les ondes radio.
+
+
+	\paragraph{Paire de cuivre torsadée} Deux fils de cuivre isolés. Ils sont torsadés pour qu'une surface annule l'induction magnétique d'une surface voisine. Sinon il faut blinder, mais c'est plus cher.
+	
+	\paragraph{Coax}
+	
+	Deux conducteurs de cuivre concentriques (au lieu d'être parallèles comme le fil de cuivre), bidirectionnel. Chaque signal (TV ou digital) est transmis sur une bande de fréquence particulière.
+	
+	\paragraph{Fibre optique}
+	
+	Des pulses de lumières, représentant un bit, sont envoyés à travers une fibre de verre. Support non exposé au bruit électromagnétique.
+	
+	On utilise deux types de verre pour ne pas perdre des photons, à cause du phénomène de réfraction (qu'il faut éviter), pour obtenir une réflexion totale.
+	
+	Dans une fibre dite multimode, il y a plusieurs trajectoires de propagation. Il y a dès lors une dispersion de délai : des photons mettent plus de temps à arriver que d'autres. Il y a également un risque de superposition des impulsions. La solution est de décaler les impulsions : plus d'interférences, mais moins de débit. 
+	
+	\dessinS{1}{.5}
+
+	On peut faire varier $n_1$, qui permet de modifier la trajectoire des photons. Les photons qui suivent les courbes sont accélérés (car $n_1$ plus grand), la courbure est compensée.
+	
+	\dessinS{7}{.5}
+	
+	\paragraph{Ondes radio}
+	
+	Signal porté sur un spectre électromagnétique. Très sensible à l'environnement (réflexion, obstruction, interférence).
+	
+	Différentes types de lien radio :
+	
+	\begin{itemize}
+		\item micro-ondes terrestres
+		\item LAN (ex : wifi)
+		\item wide-area (ex : 3G)
+		\item satellite : jusqu'à plusieurs Mbps, mais délai élevé.
+	\end{itemize}
+	
+\section{Coeur du réseau}
+
+C'est un ensemble de routeurs interconnectés, qui acheminent l'information d'un hôte à l'autre. Deux sortes de transmission :
+
+\begin{itemize}
+	\item switch de circuit : il doit y avoir un circuit de bout en bout du système ; on a un circuit dédié
+	\item switch de paquets : envoi de l'information en morceaux discrets
+\end{itemize}
+
+	\subsection{Circuit switching}
+	
+	Il arrive un moment où un lien est partagé entre plusieurs connexions, il y a une allocation statique de ressources. On garantit que la bande-passante et le canal, mais nécessité de pré-processing d'établissement et de relâchement.
+	
+	On divise le lien physique en morceau en divisant en fréquence (FDM, frequency division multiplexing ; télédistribution) et en temps (TDM, time division multiplexing ; n'est plus utilisé actuellement). Avec la division en fréquence, le hash est restreint mais on l'a tout le temps, tandis qu'avec la division temporelle, le hash est maximal mais le temps est limité.
+	
+	\dessinS{8}{.5}
+	
+	WDM (wavelength division multiplexing) : utilisation des longueurs d'onde pour partager le canal. Tout le circuit est optique (le splitter est un prisme). Les $\lambda_i$ transitent en parallèle et il n'y a pas d'interférences, car les longueurs d'onde sont différentes. WDM sur une fibre multimode n'est pas avantageux (crée des interférences, pas pratique pour du parallélisme), car on retrouve le problème de dispersion. Plus efficace sur une fibre monomode.
+	
+	\dessinS{9}{.5}
+	
+	Modèle peu adapté pour des envois des quelques bytes, car on bloque tout un circuit pour peu d'information.
+	
+	\subsection{Packet switching}
+	
+	On demande des ressources pour envoyer un paquet de données : les ressources ne sont pas bloquées pendant des longues périodes de temps. Chaque paquet utilise toute la bande passante d'un lien.
+	
+	\dessin{97}		
+	
+	Il y a congestion lorsque le réseau surchargé (car trop de paquets), il y mise en attente des paquets à envoyer dans des buffers.
+	
+	Le multiplexage est statistique : les paquets passent de noeud en noeud ; ils sont analysés, placés en file d'attente, et envoyés. C'est une sorte de TDM, mais il n'y a pas de régularité (alors que le TDM est synchrone).
+	
+	Diviser en petits paquets permet de diminuer les délais : quand un paquet est envoyé, on peut en préparer un autre ; une série de petits paquets passe plus vite qu'un seul gros.
+	
+	Le packet switching a supplanté tout car il permet à un plus d'utilisateurs de se connecter au même canal (ex : pour une ligne de 1Mbps, où chaque ligne a un débit de 100kb/s quand elle est active, et ce 10\% du temps, 10 utilisateurs max pour circuit switching. Pour le packet switching, la proba qu'il y ait 35 utilisateurs en même temps est très faible ($0.1^{35} + 0.1^{34} + \dots + 0.1^{11}$)).
+	
+	Economiquement intéressant et efficace pour l'envoi de données en rafale, mais nécessité de savoir pour l'utilisateur s'il y a des congestions dans le réseau.
+
+	\subsection{Structure d'Internet}
+
+	Internet est un réseau de réseaux, qui sont hiérarchisés :
+
+	\begin{enumerate}
+		\item au coeur, il y a les ISP (Internet Service Provider) (Tiers 1), qui sont interconnectés entre eux (relations de peering). Il y a un genre de troc de trafic ; ils sont tous sur le même pied d'égalité.
+
+		Un noeud est un POP (point of presence), un centre avec de multiples routeurs. Un graphe est un backbone. Les POP sont reliés entre eux et aux clients, via un ISP plus régional. Il y a également des liens de peering (vers d'autres tiers 1).
+	
+			\dessin{11}
+
+		\item Il y a des plus petits ISP connectés (Tier-2), à un niveau régional. Là, il y a une relation de client/fournisseur (contrairement aux Tiers-1) : les tiers-2 sont des clients des tiers-1. Il peut y avoir des relations de peering entre eux (généralement, à un point de peering, se rassemblent), ce qui est intéressant pour éviter des frais (troc).
+
+		\item Le dernier niveau de hiérarchie (tier-3) est constitué des ISP locaux.
+	\end{enumerate}
+	
+	\dessinS{10}{.5}
+
+\section{Métriques}
+
+	\subsection{Délai et pertes}
+	
+	Il y a 4 composantes dans le délai :
+	\begin{itemize}
+		\item délai de processing : vérification du paquet et détermination de la sortie (dépend souvent du CPU).
+		\item délai d'attente : temps d'attente à la sortie d'un lien pour la transmission
+		\item délai de transmission : dépend de la taille du paquet ; ratio entre longueur du paquet ($L$) et débit binaire ($R$) : $\frac{L}{R}$
+		\item délai de propagation : dépend de la longueur du câble ($d$) et de la vitesse de propagation ($s$) : $\frac{d}{s}$.
+	\end{itemize}
+	
+	\dessin{12}
+
+	$$d_{\text{nodal}} = d_{\text{proc}} + d_{\text{queue}} + d_{\text{trans}} + d_{\text{prop}}$$
+	
+	$d_{queue}$ est délai de bufferisation, élément le plus variable.	
+	
+		\subsubsection{Délai de bufferisation}
+		
+		Intensité du trafic : $ \frac{La}{R} $, avec $a$ le débit d'arrivée dans la file d'attente des paquets en moyenne. C'est un ratio arrivée/sortie, qui croit de manière sur-linéaire.
+		
+		\dessin{98}
+		
+		
+		\subsubsection{Délai sur Internet}
+		
+		
+		Le roundtrip time (RTT) est temps aller-retour d'un paquet.
+		
+		On peut déterminer le chemin que suivent les paquets en  envoyant des paquets avec des temps de vie limités (1 pour le premier routeur, 2 pour le deuxième, etc). Le routeur renverra une erreur, qui permettra de l'identifier. On effectue alors une moyenne. Cela permet d'établir la traceroute, soit le chemin de routeurs parcourus. Des routeurs peuvent ne pas répondre à ce genre de demande, ou bien à un certain quota. Généralement entre 15 et 20 sauts.
+	
+		Cependant, la traceroute n'est pas garantie correcte, les paquets/sondes peuvent suivre des chemins différents (load balancing), ce qui pourrait créer des liens qui n'existent pas. Les routeurs peuvent cependant tenter de conserver le flux.
+		
+		
+	\subsection{Perte (loss)}
+	
+	Les files (buffers) précédant un lien ont une capacité finie, et lorsqu'elles sont pleines, les nouveaux paquets sont jetés. Ils peuvent être éventuellement retransmis, mais ce n'est pas garantit.
+	
+	\subsection{Débit}
+	
+	On peut avoir un débit instantané (point particulier dans le temps) ou moyen (sur des plus longues périodes de temps, dépend des débits relatifs des liens).
+	
+	Il existe des algorithmes de contrôle de congestion qui permettent aux serveurs de ne pas débiter trop de paquets pour qu'il ne dépasse pas $R_c$ (lien supposé inconnu par le serveur).
+	
+	Le bottleneck est le maillon faible du réseau, c'est le lien qui bride le plus le débit dans le chemin end-end d'une transmission.
+	
+	Autre problème : partage des ressources (R), afin de ne pas léser les autres flux. Généralement, ce sont les lignes $R_s$ et $R_c$ qui brident le plus.
+	
+	\dessinS{14}{.5}
+	
+	
+\section{Modèles et protocole}
+
+Le défi est de découper le système en couches de manière logique, sans être pénalisé par ce découpage (car trop de découpage engendre des problèmes de performances). Il y a un compromis à trouver entre efficacité et modularité (par couches ou un seul process pour tout).
+
+L'avantage est qu'on peut identifier facilement chaque composante, et que la modularité garantit la facilité de maintenance et de mise à jour.
+	
+Essentiellement 5 niveaux :
+
+\begin{enumerate}
+	\item les applications (distribuées)
+	\item le transport : transfert des messages d'une application à une autre. On y trouve TCP et UDP.
+	
+	\item la couche réseau : transfert des segments de la couche transport d'un hôte source à un hôte destination. On y trouve IP.
+	
+	\item les liens : transfert des datagrammes de la couche réseau d'un noeud à l'autre par des liens. Selon la nature du lien, il peut y avoir des mesures à prendre (par exemple introduire de la redondance s'il y a beaucoup d'erreurs). Cela peut ne pas être physique
+	\item la couche physique : dépend intrinsèquement du milieu physique de transmission (on considère les bits et non plus les paquets)
+\end{enumerate}
+
+
+Le modèle ISO compte deux couches en plus : la présentation et la session. Modèle non repris au complet (l'application reprend ainsi les 3 premières couches)
+
+Chaque couche ajoute des en-têtes au paquet qu'il faut transmettre, il y a une encapsulation.
+
+\begin{itemize}
+
+	\item la couche transport ajoute des informations au message (code d'erreur, des séquences pour remettre tout dans l'ordre)
+	\item la couche réseau ajoute aussi des infos, comme une enveloppe, avec l'adresse d'arrivée.
+	\item la couche link permet de franchir des liens, éventuellement avec ses propres informations locales
+\end{itemize}
+
+\dessinS{15}{.5}
+
+
+
+Un routeur, quand il réceptionne le paquet, passe les couches à l'envers pour effectuer des vérifications. Puis il repasse par les couches et est envoyé. Ainsi de suite jusqu'à arriver à destination.	
+
+\section{Histoire}

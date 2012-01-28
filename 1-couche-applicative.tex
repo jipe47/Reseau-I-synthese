@@ -1,0 +1,361 @@
+\chapter{La couche applicative}
+
+\section{Principes des applications réseau}
+
+	\subsection{Création d'une application réseau}
+	
+	Ces applications n'existent que dans les systèmes d'extrémités, elles ne verront pas ce qu'il se passe entre elles lors des échanges. Il n'est donc pas nécessaire d'écrire une application pour un périphérique réseau (pas dans la couche applicative en tout cas), la partie software est très basse et n'exécutent pas des applications utilisateurs.
+	
+		\subsubsection{Grandes architectures}
+	
+	\begin{itemize}
+		\item client-serveur
+		\item P2P
+	\end{itemize}
+	
+	Dans les deux cas d'architecture, un processus peut être de type client (initialise une communication) ou de type serveur (qui attend un contact). Selon le scénario, une application peut être à la fois client et serveur (comme P2P).
+	
+	En local, les communications entre deux processus se font avec l'OS, mais pour une application distribuée les communications se font par envoi de messages.
+	
+	\paragraph{Architecture client-serveur}
+		
+	Le serveur est toujours en ligne, avec une adresse IP permanente. Actuellement, virtuellement on a un seul serveur, mais physiquement plusieurs machines. Les serveurs sont contenus dans les datacenters.
+		
+	Les clients communiquent avec le serveur, de manière intermittente ou non, avec une adresse IP dynamique ou non. Ils ne communiquent pas directement entre eux.
+		
+		
+	\paragraph{Architecture P2P}
+		
+	Pas toujours de serveurs, les applications , les peers, dialoguent directement entre elles. Peut être facilement porté à grande échelle (plus il y a de clients, plus le réseau est performant et la charge distribuée), mais il y a de nombreux messages (car pas d'infrastructures), c'est difficilement gérable (une application peut être mobile, changer d'IP), et il y a la nécessité d'une connaissance à priori avant de lancer des requêtes.
+		
+	C'est une architecture très difficile à mettre en oeuvre. On a souvent des réseaux hybrides, avec des serveurs qui permettent d'amorcer les requêtes (Skype, messagerie instantanée).
+		
+	Ex de la messagerie instantanée et Skype :
+		
+	\begin{itemize}
+		\item client-serveur pour trouver une adresse tierce
+		\item client-client pour la communication
+	\end{itemize}
+	
+
+		\subsubsection{Les sockets}
+		
+		C'est une interface qui permet la communication entre deux processus.
+		
+		\dessinS{99}{.6}
+		
+		
+		Deux questions à se poser : quel protocole de transport et quels paramètres utiliser.
+		
+		
+		\subsubsection{Adressage de processus}			
+		
+		Le premier problème est d'identifier le processus avec lequel on veut communiquer, problème d'adressage. On va assigner une adresse unique à chaque hôte, l'adresse IP. Elle ne suffit pas pour identifier le processus, on lui ajoute alors un numéro de port. Certains ports sont implicites (80 pour web, 25 pour mails).
+		
+		\subsubsection{Protocole}
+		
+		Un protocole applicatif définit
+		
+		\begin{itemize}
+			\item les types des messages (réponse, requête, ...)
+			\item la syntaxe des messages, quel sont les champs dans les messages et comment les champs sont délimités
+			\item la sémantique, quel est la signification des informations dans les champs
+			\item les règles pour savoir quand et comment les processus envoient et reçoivent des messages
+		\end{itemize}
+		
+		Critères pour le choix d'un service de transport d'une application :
+		
+		\begin{itemize}
+			\item critère de perte de donnée : certains applications peuvent le tolérer (audio), d'autres non (transfert de fichiers)
+			\item critère de timing : certains applications nécessitent peu de délai (jeu, VOIp)
+			\item critère de bande passante : certains applications nécessitent un minimum de bande passante (multimédia), d'autres non (transfert de fichier, applications "élastiques" qui peuvent s'adapter aux performances)
+			\item critère de sécurité : encryptage, intégrité des données, ...
+		\end{itemize}
+	
+		Les protocoles du domaine public sont spécifiés dans les RFCs (HTTP, SMTP, BitTorrent).
+		
+		Deux grands choix de services très opposés :
+		
+		\begin{itemize}
+			\item TCP : 
+			\begin{itemize}
+				\item orienté connexion : création d'une véritable connexion entre les processus clients et serveurs
+				\item transport fiable entre les applications
+				\item contrôle de flux (l'expéditeur n'engorge pas le receveur, il y aura de la place dans son buffer)
+				\item contrôle de congestion (pour éviter que les files d'attentes des routeurs intermédiaires ne débordent)
+				\item ne fournit pas des garanties sur les timing, le minimum de bande passante et de sécurité (il faut chiffer au-dessus)
+			\end{itemize}
+			
+			\item UDP :
+			
+			\begin{itemize}
+				\item transfert non sûr de données
+				\item ne fournit pas le connexion de contrôle, de fiabilité, de contrôle de flux, de contrôle de congestion, de timing, de garantie de bande passante et de sécurité.
+			\end{itemize}
+		\end{itemize}
+		
+		UDP est encore considéré car il y a au moins l'étape de démultiplexage vers un processus. Il faut compenser son manque de fiabilité au niveau applicatif.
+
+\section{Web et HTTP}
+
+HTTP (hyper-text transfer protocol) est un protocole de la couche applicative et est implémenté par un client et un serveur ; il y a envoi d'une requête (url) par le client et envoi d'une réponse par le serveur.
+
+Avant d'effectuer des requêtes, il faut d'abord établir une connexion TCP entre le client et le serveur. Elle est ensuite fermée quand les requêtes sont terminées.
+
+HTTP est sans état, c'est-à-dire qu'il ne maintient pas d'informations sur les requêtes des clients passées. S'il y avait des état, cela serait très compliqué [...]. Si un client demande plusieurs fois le même objet, il sera renvoyé plusieurs fois.
+
+HTTP ne définit que la manière avec laquelle le serveur et le client communiquent et la structure des segments, pas la manière d'afficher une page web.
+
+	\subsection{Type de HTTP}
+	Plusieurs modes de fonctionnement de HTTP :
+
+	\begin{itemize}
+		\item HTTP non persistant : au plus un seul objet est envoyé via TCP
+		\item HTTP persistant : plusieurs objets sont envoyés à travers une seule connexion client-serveur
+	\end{itemize}
+
+
+	Un RTT est le temps pour qu'un petit paquet soit envoyé par le client et renvoyé par le serveur.
+
+	Pour le HTTP non persistant, le temps de réponse comporte
+
+	\begin{itemize}
+		\item un RTT pour initialiser la connexion TCP
+		\item un RTT pour la requête HTTP et la réponse
+		\item le temps de transfert du fichier
+	\end{itemize}
+	
+	\dessin{100}
+
+	Le problème est qu'il faut 2 RTT par objet, et qu'il y a chaque fois une réinitialisation de la connexion TCP.
+
+	Avec HTTP persistant, la connexion reste ouverte après avoir envoyé la réponse. Du coup, en 1 RTT, on peut envoyer tous les objets demandés.
+
+	\subsection{Message HTTP}
+
+	Il y a deux types de message : les requêtes et les réponses.
+	
+		\subsubsection{Requêtes}
+		
+		Une requête est lisible (ASCII) et chaque ligne est séparée par un CRLF (carriage return, line feed), la dernière ligne de header en comportant un de plus pour séparer les headers du body.
+		\dessin{101}
+		
+		\dessinS{16}{.4}
+		
+		Le nom de l'hôte est économisé dans la ligne de requête car la requête atterrira sur l'hôte en question grâce à TCP, mais est quand même communiqué pour les systèmes intermédiaires de caching.
+		
+		Il y a plusieurs méthodes pour envoyer de l'information :
+		
+		\begin{itemize}
+			\item GET, avec les informations dans l'URL (?key=value)
+		
+			\item POST, qui est un GET, mais avec du contenu supplémentaire dans le body de la requête. On peut passer par le GET en étendant l'url.
+			
+			\item HEAD : renvoi une réponse vide, pour vérifier si l'objet existe.
+			
+			\item PUT et DELETE : injection et suppression de contenu à distance.
+		\end{itemize}
+		
+		Il y a d'autres headers, comme \texttt{Connection: close|keep-alive}, \texttt{User-agent} ou \texttt{Accept-language}.
+		
+		\subsubsection{Réponses}
+		
+		\dessinS{17}{.4}
+		
+		La première ligne de la réponse donne le statutLes principaux :
+		
+		\begin{itemize}
+			\item 200 : ok ;
+			\item 301 : moved permanently ;
+			\item 400 : bad request ;
+			\item 404 : not found ;
+			\item 505 : HTTP version not supported.
+		\end{itemize}
+		
+	\subsection{Les cookies : état client-serveur}
+	
+	HTTP ne conserve pas de données, mais des données peuvent être gardées via les cookies chez le client. Le danger est la circulation de données en clair, il vaut mieux passer par une connexion TCP sécurisée. 
+	
+	Un cookie peut être défini par une réponse HTTP et consulté via une requête.
+	
+	\dessinS{18}{.4}
+	
+	On peut donc garder un état avec un protocole simple, via un message.
+	
+	\subsection{Cache web (proxy)}
+		
+	Ajout d'un état dans un système intermédiaire, pour augmenter les performances : cela permet de soulager les serveurs d'origine s'il y a beaucoup de requêtes, ou les réseaux.
+	
+	Lors de l'envoi d'une requête HTTP à un cache, ce dernier retourne l'objet s'il est en cache, sinon il demande l'objet au serveur d'origine et ensuite le retourne au client. Il est généralement installé chez l'ISP ou dans une institution.
+	
+	\dessin{19}
+	
+	Il faut veiller à ne pas envoyer un objet qui n'est plus à jour ; à chaque requête, le cache devra avoir accès aux serveurs d'origine pour vérifier la date de dernière modification. Ce n'est pas pénalisant grâce au GET conditionnel : on n'envoit pas l'objet si la version en cache est à jour ; il y a un header dans la requête qui précise la date de dernière modication de l'objet en cache.
+
+	\dessinS{20}{.5}
+
+	% Notes 25-02-2011
+	
+	Dans la requête HTTP envoyée à un proxy, on re-précise le nom du serveur pour savoir sur quel serveur chercher. 
+	
+	Le cache permet donc de 
+	
+	\begin{itemize}
+		\item réduire le temps de réponse si la connexion client-cache est bonne ;
+		\item diminuer le trafic Internet.
+	\end{itemize}
+	
+
+\section{DNS - Domain Name System}
+
+Protocole permettant de récupérer l'adresse IP d'un serveur à partir d'un nom symbolique. Les noms doivent être structurés et sont stockés dans une BDD distribuée.
+
+Cette fonctionnalité se situe au niveau applicatif, afin de mettre la complexité à la périphérie du réseau (et garder le coeur simple).
+
+Services DNS :
+
+\begin{itemize}
+	\item traduction nom de machine - ip (indirection)
+	\item alias (nom synonyme pour un autre nom, chaînage) pour les noms de machine ou les serveurs mails
+	\item répartition de charge ; le DNS répartit les requêtes sur différentes machines pour ne pas les surcharger. En pratique, un serveur DNS donne les différentes adresses IP d'un nom de domaine, à la prochaine requête la liste sera décalée. Cela permet d'avoir une réserve d'adresses IP.
+\end{itemize}
+
+Pourquoi le DNS n'est pas centralisé :
+
+\begin{itemize}
+	\item en cas de panne, arrêt complet
+	\item volume du trafic élevé
+	\item les distances de connexion
+	\item maintenance
+\end{itemize}
+
+\dessinS{21}{.5}
+
+Au départ, on s'adresse au serveur racine (root DNS server), qui va nous faire descendre dans l'arbre jusqu'à destination, en déléguant la responsabilité de gérer les sous-domaines aux autres serveurs DNS.
+
+Le nombre de serveur DNS est relativement réduit, ce qui n'est pas suffisant pour supporter tout le trafic mondial, on élabore alors des mécanismes pour raccourcir.
+
+La couche la plus haute de serveurs DNS après les serveurs root comporte les TLD (top-level domain) servers  ; ils gèrent les .fr, .com, etc.
+
+Il y a ensuite les serveurs DNS autoritaires, ceux des organisations concernées ou des ISP, avec les entrées DNS publiques et accessibles à tous.
+
+	\subsection{LocalName Server}
+	
+	Pour une requête DNS, on l'envoie d'abord à un genre de proxyDNS, le local DNS server (pas au root DNS si le proxy connaît l'information). Il faut donc avant tout connaître ce serveur lorsqu'on se connecte, il est communiqué lors de l'établissement d'une connexion grâce au serveur DHCP.
+	
+	Une demande DNS peut être itérative (la réponse est exacte ou un pointeur vers un autre DNS) ou récursive (réponse complète et exacte).
+	
+		\subsubsection{Demande itérative}
+		
+		\dessinS{22}{.5}
+		
+		La demande de l'hôte au local DNS server est récursive, le reste est itératif.
+		
+		La requête est très vite traitée car il y a un risque de trafic élevé au niveau du local DNS, et donc de caching ; par exemple, si deux demandes de .edu, on passe directement à la requête 4.
+	
+		\subsubsection{Demande récursive}
+		
+		\dessinS{23}{.5}
+		
+		 Avantages :
+		 
+		 \begin{itemize}
+			\item le local DNS server est moins chargé ;
+			\item le cache s'effectue dans beaucoup plus d'endroits différents, ce qui peut raccourcir le chemin, alors qu'en itératif il faut refaire tout le circuit.
+		 \end{itemize}
+		 
+		 Inconvénients : 
+		 
+		 \begin{itemize}
+			\item si jamais la chaîne est cassée, le problème est plus compliqué ;
+			\item les serveurs DNS envoient et reçoivent plus de requêtes, et
+			\item bloquent des ressources pendant plus longtemps (car il y a un état à retenir).
+		 \end{itemize}
+		 
+		 Dans les deux cas, il y a du DNS caching : les réponses sont stockées avec un TTL, afin d'accélérer les prochaines requêtes.
+	
+	\subsection{Enregistrements DNS}
+	
+	Format d'un Ressource Record (RR) : \texttt{(name, value, type, ttl)}.
+	
+	Le nom est un nom de machine, de domaine, etc, auquel on a une value (alias ou ip). Il y a un type, ainsi qu'un temps de vie (ttl).
+	
+	Différents types :
+	
+	\begin{itemize}
+		\item A : name est un nom d'hôte, value une adresse IP. Exemple : \texttt{(un.domaine.be, 123.456.789.112, A)}
+		\item NS : name est un nom de domaine, value est un nom de machine, par exemple le nom de domaine sur DNS du domaine ; \texttt{(host.be, dns.host.be, NS)}
+		\item CNAME : nom est un alias, value le nom canonique. Exemple : \texttt{(host.be, relay.host.be, CNAME)}
+		\item MX : value est le nom du serveur de mail associé au nom de domaine name. Exemple : \texttt{(host.be, mail.host.be, MX)}
+	\end{itemize}
+	
+	Une fois que le mapping DNS est effectué, il est mis en cache. Les serveurs TLD mettent généralement en cache les noms de serveurs, ainsi les serveurs de nom root ne sont pas souvent visités.
+	
+	Pour un DNS non autoritaire, pour un domaine, on a deux entrées :
+	
+	
+	\begin{itemize}
+		\item une entrée NS, avec le domaine et le serveur DNS du domaine
+		\item une entrée A, avec l'IP du DNS du domaine (donc l'entrée NS)
+	\end{itemize}
+
+	Un serveur autoritaire lui n'aura qu'une entrée, de type A pour l'hôte. Il en faudra une en plus pour un alias mail.
+
+	
+	\subsection{Messages DNS}
+	
+	Les requêtes et les réponses ont la même forme. 
+	
+	Dans le header, il y a un numéro d'identification (que contiendra aussi la réponse). Il y a également des flags (requête ou réponse, récursion désirée, récursion disponible et si la réponse émane de l'autorité). On spécifie aussi le nombre de questions, de réponses, d'enregistrements pour les serveurs de l'autorité et d'infos jugées utiles.
+	
+	
+	Le corps du message contient les questions, les réponses, les enregistrements et des informations supplémentaires.
+	
+	
+	\dessinS{24}{.55}
+	
+	Une réponse émane de l'autorité si elle ne vient pas d'un cache (confiance ou non, car risque de pollution DNS)
+
+	\subsection{Ajout d'entrées DNS}
+	
+	Il faut enregistrer les noms dans un registres DNS auprès de sociétés. C'est l'ICANN qui les accréditent.
+	
+	Lorsqu'on enregistre un domaine, il faut aussi spécifier les IPs des serveurs DNS primaires et secondaires. Par exemple, pour un serveur DNS primaire, on aurait \texttt{(host.be, dns1.host.be, NS)} et \texttt{(dns1.host.be, 123.456.789.123, A)}.
+	
+	Il faudra également une entrée de type A pour un serveur web, et une de type MX pour le serveur mail dans les DNS autoritaires (\texttt{dns.host.be}).
+	
+	Ce sont les noeuds qui ont une ip, pas un domaine, car un domaine peut compter de nombreuses machines.
+	
+\section{Programmation de socket}
+
+C'est une interface demandée par une application, contrôlée par l'OS, et permettant d'envoyer et recevoir des messages avec d'autres applications. Elle peut être de type TCP ou UDP.
+
+Pour communiquer avec un processus distant, ce dernier doit tourner et avoir un socket atteignable.
+
+	\subsection{Avec UDP}
+	
+	Il n'y a pas vraiment de connexion. Le client attache explicitement l'IP et le port à un paquet. Côté serveur, il faut spécifier qu'on attend sur un port spécifique.
+	
+	Le socket va ajouter des infos aux requêtes pour qu'elles soient autoportantes (on sait s'il faut répondre ou non, l'ip source, le port source, etc).
+	
+	%[dessin 1]
+
+	Il peut y avoir plusieurs clients (mise en attente si traitement en cours).
+	
+	\dessinS{25}{.5}
+	
+	En Java, un socket UDP s'instancie avec \texttt{DatagramSocket()}, auquel on passe une instance de \texttt{DatagramPaquet}, qui contient l'adresse IP, le port, les données et leur longueur.
+	
+	Côté serveur, le socket d'accueil s'instancie avec \texttt{DatagramSocket(port)}.
+	
+	\subsection{Avec TCP}
+	
+	Comme UDP, il est nécessaire que le processus fasse tourner un processus d'écoute d'un socket (welcoming socket). Le client crée un socket aussi qui, contrairement à UDP, est dédié au serveur auquel on veut communiquer (avec UDP, le serveur peut être différent pour le même socket) : il y a un lien explicite. Du coup, une fois le socket créé, plus besoin de re-préciser la destination.
+
+	\dessinS{26}{.5}	
+	
+	On ne peut pas avoir deux connexions associées au même socket, sinon on ne sait pas vers quel connexion envoyer les informations. La solution est que le welcoming socket crée un nouveau socket et l'associera à la connexion, on a ainsi plusieurs sockets associés au même port.
+	
+	En Java, le socket client s'instancie avec \texttt{new Socket(host, port)}. 
+	
+	Le socket d'accueil est \texttt{ServerSocket(port)}, le socket qui prend le relais est généré avec la méthode \texttt{accept()} du socket d'accueil.

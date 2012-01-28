@@ -1,0 +1,711 @@
+\chapter{La couche réseau}
+
+\section{Introduction}
+
+C'est une couche se situant aux extrémités dans chaque hôte, et que les dispositifs intermédiaires sont capables de comprendre.
+
+Du côté de l'expéditeur, cette couche encapsule les segments (venant de la couche de transport) dans des datagrammes. Du côté du receveur, ces datagrammes sont délivrés à la couche de transport.
+
+\underline{Le forwarding}, au niveau d'un routeur, est le déplacement d'un paquet d'une entrée à la sortie appropriée, via une table d'acheminement, qui se construit par un protocole de routage.
+
+\underline{Le routage}, au niveau d'un routeur, permet de découvrir la topologie du système et de déterminer la route que le paquet doit suivre. La décision à prendre doit être cohérente par rapport à tout le réseau, pour éviter les boucles ou les conflits. C'est le routage qui va générer la table de forwarding.
+
+Dans certains réseaux, il y a un établissement d'une connexion (pas pour Internet), c'est-à-dire que tous les routeurs vont établir un chemin dans le réseau.
+
+Cette couche réseau fait le lien entre deux machines, alors que la couche transport connecte des processus entre eux via des sockets.
+
+Plusieurs services peuvent être proposés par la couche :
+
+\begin{itemize}
+	\item Les datagrammes individuels garantissent la livraison
+\dots
+	\item \dots et la livraison avec moins de 40 ms de délai
+	\item Les flux de datagrammes garantissent la livraison dans l'ordre,
+	\item un minimum de bande passante, et
+	\item des restrictions sur les changements entre deux paquets.
+\end{itemize}
+
+La couche réseau d'Internet, IP,  propose un seul service, celui du best-effort : on fait de son mieux pour acheminer le paquet à destination. Il en existe bien d'autres (CBR, ABR) qui proposent plus de services.
+
+\dessinS{114}{.5}
+
+\section{Circuits virtuels et réseaux de datagrammes}
+
+Comme la couche de transport avec TCP et UDP, la couche réseau propose un service avec ou sans connexion. Un réseau de datagrammes est un service sans connexion, tandis qu'un réseau virtuel est un service avec connexion.
+
+C'est similaire aux services de la couche de transport, mais 
+\begin{itemize}
+	\item le service se fait d'hôte à hôte,
+	\item le réseau est d'un type ou de l'autre (pas les deux), et 
+	\item l'implémentation se fait dans le coeur du réseau et dans les systèmes d'extrémités (on n'a pas de couche transport dans les routeurs).
+\end{itemize}
+	\subsection{Circuits virtuels}
+	
+	Chemin tracé dans le réseau de façon à avoir certaines performances et la possibilité d'actions sur le réseau durant l'acheminent. On a un état par destination. Ces chemins se comportent comme des circuits téléphoniques.
+	
+	On attribue un numéro à chaque lien du chemin à parcourir (VC number), et qui peut changer en cours de route (s'il y a une connexion qui porte le même numéro dans le même noeud). Les routeurs maintiennent l'information de l'état de connexion.  		 		
+	\dessinS{29} {.5}	
+	
+	Dans le header du datagramme, on va préciser le VC number du lien à utiliser. Il sera remplacé à chaque passage dans un noeud, en fonction de la table d'acheminement.
+	
+	Le numéro de paquet change car
+	
+	\begin{itemize}
+		\item c'est plus simple si on permet plusieurs nombre ; si le nombre était unique, les routeurs devraient communiquer entre eux pour le déterminer, ce qui ralentit et complexifie le réseau ;
+		\item cela permet de garder réduit le champ VC number.
+	\end{itemize}
+				
+	Si un lien est cassé, il faut rétablir un circuit, les paquets n'arriveront pas  destination. 
+					
+	\dessinS{30}{.5}  		
+	Le transfert se fait donc en 3 étapes : 		 		
+	\begin{enumerate} 			
+		\item VC setup : la couche de transport contacte le réseau en spécifiant l'adresse du récepteur, et attend qu'il crée le circuit virtuel. La couche va déterminer le chemin, les VC numbers et va ajouter dans la table de forwarding de chaque routeur du chemin une entrée.
+		\item transfert de données.
+		\item VC teardown : on informe le réseau qu'on veut terminer le circuit virtuel. Les tables de chaque routeur sont mises  à jour. 
+	\end{enumerate}		
+	
+	Les protocoles de signalisation sont utilisés pour installer, maintenir et démonter un circuit virtuel. C'est aussi utilisé dans d'autres réseaux (ATM, frame-relay, X.25),  mais n'est plus utilisé dans l'Internet d'aujourd'hui.
+	
+	\subsection{Réseau de datagrammes}
+	
+	Il n'y a aucun établissement de connexion, chaque noeud répartit les paquets entre les lignes. Chacun des paquets est autoportant, ils doivent avoir l'adresse de destination.
+	
+	\dessinS{31}{.5}
+	
+	Si un lien est cassé, on peut le rediriger pour quand même l'acheminer.
+	
+	La table d'acheminement peut être très grande (une entrée par adresse) ; pour économiser, on peut spécifier des ranges de valeurs pour les acheminements, en spécifiant des préfixes.
+	
+
+	% Notes 25 - 03 - 2011
+
+	Si plusieurs solutions dans le forwarding conviennent, on va choisir celle qui a le plus long préfixe en commun.
+	
+	\subsection{Comparaison des deux modèles}
+	
+	
+	Pour les datagrammes (utilisés pour Internet) :
+	\begin{enumerate}
+		\item échange de données entre des ordinateurs. C'est un service "élastique", il n'y a pas de requis au niveau du temps
+		\item les systèmes périphériques sont "intelligents" (des ordinateurs). 
+		
+		Ils peuvent s'adapter, appliquer un contrôle et récupérer d'erreur. Ainsi, le réseau est simple à l'intérieur, et complexe à la périphérie.
+		\item il y a plusieurs types de liens, avec des caractéristiques différentes, ce qui rend l'uniformité du service difficile.
+	\end{enumerate}
+	
+	
+	Pour les réseaux virtuels (ATM) :		
+	\begin{enumerate}
+		\item évolution de la téléphonie
+		\item adapté aux conversations humaines, avec des timing stricts et des garanties de fiabilité. C'est nécessaire pour les services qui sont garantis.
+		\item les systèmes d'extrémité sont simples (comme des téléphones), la complexité est à l'intérieur du réseau.
+	\end{enumerate}
+		
+
+	Ce sont des modèles duals.
+	
+\section{Routeurs}
+
+Le rôle du routeur est d'acheminer les paquets d'une de ses entrées à la bonne sortie, en fonction de sa table d'acheminement.
+
+Le processeur est généralement utilisé pour générer les structures de données (calcul de routes, recherche du chemin le plus court, etc) et acheminer des datagrammes d'un lien d'entrée vers un lien de sortie.
+
+\dessinS{32}{.55}
+
+
+Un routeur est composé de 4 éléments :
+
+\begin{enumerate}
+	\item des ports d'entrée, chargés des fonctionnalités physiques et de celles de la couche lien ;
+	\item un switching fabric, qui connecte les ports d'entrée et de sortie (sorte de réseau dans le réseau)
+	\item des ports de sortie
+	\item un processeur de routage, qui exécute les protocoles de routage. Cela n'a rien à voir avec le traitement en temps réel que l'on applique à chaque paquet reçu (qui se fait dans le switching fabric ou dans les ports d'entrée/sortie).
+\end{enumerate}
+
+	\subsection{Ports d'entrée}
+	
+	Lieu où s'appliquent les dernières couches. On doit être capable de décoder et reconnaître un train binaire, qui peut être propre à un lien. Chaque paquet est encapsulé dans une trame particulière, qui dépend des fonctionnalités voulues (récupération d'erreur, etc).
+	
+	\dessinS{33}{.5}
+	
+	La partie datalink analyse, jette le paquet éventuellement si abîmé, et transmet dans un buffer d'entrée où on va retrouver le paquet ip tel quel.
+	
+	La fonctionnalité de look-up (table de forwarding) se trouve dans chaque interface, la table n'est pas stockée dans une autre mémoire, ainsi on peut fonctionner à la vitesse de la ligne.
+	
+	Il y a une mise en attente si les datagrammes arrivent plus vite que le rythme de forwarding.
+	
+	\subsection{Switching fabrics}
+	
+	Trois types d'implémentation :
+	
+	\begin{itemize}
+		\item avec de la mémoire : stockage du paquet en mémoire, basé sur l'architecture de von Neuman. 
+		
+		Simple à mettre en place (n'importe quel ordinateur avec deux interfaces), mais pas très performant (le bus système étrangle les performances et il y a un double accès mémoire pour chaque datagramme) ;
+		
+		\dessin{35}
+		
+		\item avec un bus : un seul passage sur un bus, sur lequel on estampille le paquet pour le diriger vers la bonne sortie. On est toujours bloqué par le débit brut du bus, de plus l'accès au bus est séquentiel ;
+		\item avec matrice de commutation : introduction de parallélisme, avec des interrupteurs que l'on peut activer ou désactiver. Si on veut copier le paquet, il suffit d'activer plusieurs commutateurs sur une même ligne. 
+		
+		Il y a un minimum d'ordonnancement à avoir, si jamais plusieurs paquets sont redirigés vers la même sortie. De plus, il faut activer les commutateurs.
+		
+		L'ordonnanceur doit être un minimum intelligent, car les paquets ont des tailles variables, ce qui fait que les commutateurs doivent être ouverts/fermés plus ou moins longtemps.
+	\end{itemize}
+	
+	\dessinS{34}{.5}
+	
+	
+	\subsection{Ports de sortie}
+	
+	\dessinS{36}{.5}
+	
+	Fonctions symétriques à celles des entrées.
+	
+	On pourrait implémenter plusieurs files d'attente, pour chaque type de paquet, ou bien une politique d'ordonnancement différente de FIFO.
+	
+	Lorsqu'on a décidé du paquet à envoyer, on l'encapsule (dans le datalink), puis on le binarise.
+	
+	
+	\subsection{Queuing à l'entrée et à la sortie}
+	
+	Des buffers sont présents aux entrées et aux sorties d'un routeur. C'est eux qui jettent les paquets quand ils sont pleins.
+	
+	La taille des buffers est généralement définie pour absorber au mieux un RTT de flux.
+	
+	On prend en général, pour $N$ flux TCP, un buffer de taille égale 
+	
+	$$\frac{RTT . C}{\sqrt{N}} $$
+	
+	Prendre simplement $RTT.C$ est surestimé, car plus il y a de flux TCP plus le signal sera lisse (grâce notamment au contrôle de congestion).
+	
+	On peut en avoir dans les ports de sortie comme dans les ports d'entrée, dans le cas où le switch fabric est trop lent que pour pouvoir absorber tout le flux.
+	
+	HOL (head-of-the-line) blocking : si un paquet en tête de file est bloqué, tout ceux avant le sont aussi. Il faudrait aller plus loin dans l'analyse des paquets du buffer, mais cela compliquerait l'ordonnanceur. 
+	
+	\dessinS{37}{.5}
+	
+\section{Protocole IP}
+
+Le checksum ne s'occupe que de l'entête, le checksum du body étant géré par l'entête TCP ou UDP.
+
+
+	\subsection{Format d'un datagramme IP}
+	
+	\dessin{115}
+	
+	Codé sur 32 bits. Il y a un header de 20 bytes pour TCP et un autre de 20 bytes pour IP. 		 												
+		\subsubsection{Fragmentation et réassemblage} 		 			
+	
+	Le MTU (Maximum Transmission Unit) est la taille de paquet maximum qu'une trame de la couche lien peut transporter (ex d'Ethernet : 1500 bytes). Vu que sur un trajet d'un paquet il peut y avoir plusieurs types de liens et de protocole, le MTU varie.
+	
+		La fragmentation consiste à découper un "gros" paquet en plus petits blocs, tous autoportant. C'est le système à la fin du trajet qui s'occupera de reformer le paquet initial. On inclut dans le header des informations permettant d'identifier et de rassembler dans l'ordre les fragments. Cette segmentation est transparente pour la couche de transport.
+	
+	Un fragment peut être refragmenté ; la difficulté est de rassembler dans l'ordre des paquets qui ont été fragmentés plusieurs fois.
+	
+	Le fragflag est à 0 si le paquet n'est pas fragmenté ou s'il est le dernier fragment. offset permet de placer le fragment au bon endroit, il lève aussi l'ambiguïté de fragflag (si fragflag = 0 et offset = 0, ce n'est pas un fragment, sinon c'en est un et c'est le dernier).
+	
+	Chaque morceau possède un ID pour pouvoir grouper les segments. length compte la longueur du message ET des entêtes.
+	
+	La quantité de données dans les fragments doit etre un multiple de 8 bytes (sauf le dernier fragment). L'offest qui est spécifié est ainsi en unité de 8 bytes.
+	
+	\dessin{38}
+	
+	On présuppose qu'on ne sera jamais contraint à fragmenter en paquets plus petits que 8 bytes.
+	
+	Lorsqu'on fragmente un fragment, il n'y en aura qu'un seul qui aura un 0 car on reprend le fragflag.
+	
+	On aimerait éviter de fragmenter pour éviter les surcharges. C'est aussi pour éviter les surcharges que les routeurs ne réassemblent pas les paquets. Le problème est de connaître le MTU minimum du chemin
+
+	On utilise pour cela des paquets ICMP, avec un flag indiquant de ne pas fragmenter. Les routeurs doivent pouvoir envoyer des messages ICMP (on pourrait ne pas vouloir le faire pour éviter des dénis de service (ou bien on place une borne)).
+	
+	Si la source reçoit un message d'erreur ICMP, alors elle réessaiera avec un paquet plus petit que le MTU indiqué dans le paquet ICMP de retour.
+	
+	Le problème est qu'il faut que les routeurs retournent des messages ICMP. De plus, la congestion pourrait jeter les messages ICMP, et la route pourrait changer, ce qui engendre de toute façon de la fragmentation.
+	
+	Problèmes de la fragmentation :
+	
+	\begin{itemize}
+		\item c'est une charge en plus pour les routeurs
+		\item des attaques DOS sont possibles, par exemple en envoyant des fragments sans commencer à 0, ou des fragments qui se chevauchent.
+	\end{itemize}
+	
+	\subsection{Adressage IPV4}
+	
+	La plupart du temps, une adresse IP (sur 32 bits) identifie une interface physique (et non pas un système) : soit un hôte, soit l'interface d'un routeur. Toutes les IP dans une même zone vont avoir le même préfixe, pour faciliter le routage ; le protocole IP permet d'amener le paquet au dernier routeur.
+		\subsubsection{Sous-réseaux}
+		
+		Dans une adresse IP, on distingue la partie subnet (les bits de grand ordre) et la partie hôte (les bits de petit ordre).
+		
+		Un subnet est l'ensemble des interfaces qui ont la même partie subnet de leur IP. Ces interfaces peuvent s'atteindre physiquement sans l'intervention d'un routeur.
+		
+		Pour déterminer les subnets, il suffit de détacher chaque interface de son hôte ou de son routeur, et de créer des réseaux isolés.
+		
+		\subsubsection{CIDR}
+		
+		CIDR (Classless InterDomain Routing) est le format d'ip a.b.c.d/x, où x est le nombre de bits de subnet dans l'adresse.
+		
+		\dessinS{39}{.5}
+		
+	
+		\subsubsection{DHCP}
+	
+		Pour récupérer une adresse IP, on peut la hardcoder dans un fichier système, ou bien en adresser une dynamiquement depuis un serveur. DHCP va fournir cette adresse, en plus de démarrer certains services de bases.
+	
+		Généralement, les routeurs possèdent un serveur DHCP. Le modèle impose qu'il y ait un serveur DHCP dans tous les subnets.
+	
+		4 messages : 
+	
+	
+		\begin{enumerate}
+			\item message de découverte : le client envoie une requête de découverte en broadcast (tous les serveurs DHCP le recevront). La requête est envoyée à partir d'une adresse non routable (0.0.0.0).
+			\item message de réponse : le serveur DHCP envoie une proposition d'adresse, que l'on peut garder pendant une certaine durée (il faudra la renouveler).
+			\item message de request : choix parmi les propositions d'ip.
+			\item message d'ack
+		\end{enumerate}
+	
+		Les messages sont tous en broadcast, on sait constamment qui il y a sur le réseau. Il y a de plus une détection rapide si jamais une IP est utilisée plus d'une fois.
+		
+		Le serveur DHCP ne retourne pas qu'une adresse IP : il retourne l'adresse du routeur, le nom et l'IP du serveur DNS, le masque du réseau.
+	
+		Ce sont les ISP qui fournissent des portions de leur espace d'adresses. Ces ISP obtiennent ces adresses auprès de l'ICANN (Internet Corporation for Assigned Names and Numbers), qui alloue des adresses, gère les DNS et assigne des noms de domaine.
+		
+
+		\subsubsection{NAT - Network Address Translation}
+	
+		Il faut s'arranger pour que des adresses non routables restent locales, cachées (très probablement déjà utilisées). L'avantage est qu'on peut changer d'ISP sans changer le subnet.
+		
+		Le routeur est à la fois client et serveur DHCP : client pour récupérer une adresse ip, serveur pour le subnet.
+	
+		
+	La motivation est donc d'avoir un réseau local avec juste une seule adresse IP, pour tous les périphériques. Ainsi, un routeur NAT doit
+	
+	\begin{itemize}
+		\item pour les datagrammes sortant, remplacer l'adresse IP et le port source par l'adresse IP NAT et un nouveau port. Ainsi, les réponses reviendront vers le serveur NAT.
+		\item se rappeler, dans une table de traduction NAT, du mapping de chaque adresse source et port vers l'adresse NAT et du nouveau port.
+		\item pour les datagrammes entrant, remplacer l'adresse NAT et le nouveau port par ce qui est stocké dans la table NAT.
+	\end{itemize}
+		
+		C'est une sorte de firewall : si un paquet veut atteindre une machine qui n'a pas d'entrée NAT, il restera bloqué au routeur. Il y a une ouverture lors de l'envoi d'un paquet du LAN.
+	
+		Problèmes si le paquet est crypté.
+		
+		Le NAT est controversé, car les routeurs ne devraient entrer en jeu que jusqu'à la couche 3 (en modifiant les ports, il y a un accès  la couche de transport). De plus, cela viole la condition end-to-end ; les NAT doivent être pris en compte dans le design d'une application réseau. Ces raccourcis d'adresse devraient prendre fin avec IPv6, vu l'espace d'adresse disponible.
+		
+		On rencontre cependant un problème lorsqu'un client veut traverser le NAT sans qu'un hôte derrière ne l'ait sollicité (ex d'un serveur).
+		
+		Solutions : 
+		
+		\begin{enumerate}
+			\item configurer statiquement la table NAT
+			\item Universal Plug and Play (UPnP) Internet Gateway Device (IGD) Protocol. Cela permet aux hôtes derrière le NAT d'avoir des IP publiques et d'ajouter et de supprimer des mapping de port. C'est une configuration automatique de la table NAT.				
+			
+			\dessin{41}
+			
+			\item utiliser un relai, exemple de skype : le routeur acceptera ce qui vient des serveurs skype, mais pas directement de l'autre interlocuteur.
+			
+			\dessin{40}
+		\end{enumerate}
+	
+	
+	\subsection{ICMP}
+	
+	ICMP (Internet Control Message Protocole) est un protocole reportant les erreurs à l'aide de paquets ICMP. Il est utilisé par les hôtes et les routeurs pour communiquer des informations réseau.
+	
+	Il envoie des informations sur ce qui a généré l'erreur. Il peut être utile pour autre chose (ex : ping, ou MTU pour une fragmentation). Traceroute les utilise pour déterminer une route, car ils contiennent des informations sur le routeur.
+	
+	\subsection{IPv6}
+	
+	La motivation était le fait que l'espace des adresses de 32 bits sera bientôt complètement alloué. De plus, le format de header aide les traitement et le forwarding et facilite le QoS.
+	
+	Le header d'un datagramme IPv6 est de 40 bytes, et ne permet pas la fragmentation.
+	
+	\dessinS{42}{.5}
+	
+	On trouve un champ qui détermine la priorité d'un datagramme dans un flux. Le flow label permet d'identifier les datagrammes d'un même flux, même si le concept de flux n'est pas bien définit. Le champ next header identifie le protocole à qui livrer le contenu, ou d'autres options.
+	
+	Le checksum a été complètement retiré, ce qui réduit le temps de traitement ; la responsabilité est reportée à la couche de transport et à la couche lien. On définit également ICMPv6.
+	
+	Pour le passage d'IPv4 à IPv6, tous les routeurs ne sauraient pas être mis à jour en même temps, et aucun "flag day" n'a été défini.
+	
+	Pour remédier à ce problème, on utilise le tunneling : un datagramme IPv6 est incorporé dans un datagramme IPv4 pour qu'il puisse traverser les routeurs IPv4.
+	
+	\dessin{43}
+	
+	
+\section{Algorithmes de routage}
+
+Les algorithmes de routage permettent donc de générer la table d'acheminement des routeurs. Le système est trop grand pour être fédéré globalement, c'est à un niveau local que le routage est calculé.
+
+Chaque hôte est attaché directement à un routeur, que l'on appelle le routeur par défaut, ou le first-hop router. Le but est de trouver un chemin de coût minimal entre le routeur par défaut d'un émetteur et celui d'un récepteur
+
+Le routage consiste à générer un graphe de la topologie du réseau et à chercher des chemins à l'intérieur. A chaque lien, on assigne un coût qu'il faudra minimiser. Le fait de changer le coût des liens modifie à coup sûr les chemins.
+
+	\subsection{Métriques pour le coût}
+
+	Les coûts peuvent être définis de manière à optimiser le réseau. Il est pour cela nécessaire de connaitre la matrice de trafic (TM) : pour chaque paire de noeuds $(i, j)$, $TM(i, j)$ est la quantité de trafic entrant par le noeud $i$ et sortant par le noeud $j$.
+
+Il y a plusieurs manières de définir les métriques.
+
+	\paragraph{Minimiser la charge moyenne des liens}
+
+	Pour assurer un minimum de hop dans le routage, on peut mettre le coût de tous les liens à 1. Cela minimisera aussi la charge des liens et le processing dans les noeuds, mais ça ne garantit pas un délai minimum ni une congestion minimale.
+
+	En effet, on a 
+
+	$$\text{Score} = \text{charge moyenne des liens} = \frac{\sum_{i \in \text{ links}} \text{charge}_i}{N} $$
+
+	Minimiser la charge moyenne équivaut à minimiser la somme de toutes les charges, on peut donc enlever le dénominateur.
+
+	De plus, router un nouveau flux de débit $R$ pour un chemin $P$ augmentera le score :
+
+	$$\text{Augmentation de la charge} = \sum_{i \in P} R = R \times \text{nombre de hops dans } P$$
+
+	Ainsi, minimiser la charge d'un lien équivaut à minimiser le nombre de hop, et pour cela il suffit d'avoir la métrique statique 1 pour chaque lien.
+
+
+	\paragraph{Minimiser l'utilisation moyenne d'un lien}
+	
+	$$\text{Score} = \text{Utilisation moyenne du lien} = \frac{\sum_{i \in \text{links}} \text{utilisation}_i}{N} = \frac{\sum_{i \in  \text{ links }} \frac{\text{charge}_i}{\text{capacité}_i}}{N}$$
+
+	C'est équivalent à minimiser la somme de toutes les utilisations des liens. Router un nouveau flux de débit $R$ selon un chemin $P$ va augmenter le score :
+
+	$$\text{Augmentation de l'utilisation} = \sum_{i \in P} \frac{R}{C_i} = R \times \sum_{i \in P} \frac{1}{C_i}$$
+
+	Cela équivaut donc à chercher le chemin qui minimise $\sum_{i \in P} \frac{1}{C_i}$. Pour y parvenir, on peut assigner la métrique $\frac{1}{C_i}$, la capacité inverse. Cela a un sens, car on somme des temps de transmission.
+
+	\paragraph{Autres métriques}
+
+	\begin{itemize}
+		\item métrique sur le délai d'un lien : on minimise le délai, mais cela implique plusieurs composantes : le temps de propagation, le temps de transmission (taille du paquet / capacité du lien) et le temps d'attente (qui varie et dépend de la charge, difficile à prendre en compte)
+		\item coût administratif : chaque métrique est calculée pour optimiser un certain score, par exemple pour mieux balancer la charge, mais ça devient dépendant de la matrice de trafic
+		\item n'importe quelle quantité sommable, c'est à dire que le coût d'un chemin est la somme des coûts des liens.
+	\end{itemize}
+
+
+	\subsection{Principe d'optimalité}
+	
+	Si un routeur $J$ est dans le chemin optimal pour aller du routeur $I$ à un routeur $K$, alors le chemin optimal de $J$ à $K$ suit la même route.
+	
+	En conséquence, l'ensemble des routes optimales est un arbre recouvrant dont la racine est la source. Le spanning tree est individuel et associé à un noeud, il n'est pas généralisable pour tous les autres noeuds. (ex : O $\rightarrow$ H)
+	
+	\dessin{78}
+
+	\subsection{Classification des algorithmes de routage}
+	
+	L'information peut être
+	
+	\begin{itemize}
+		\item globale : tous les routeurs ont la topologie complète et les informations de coût des liens ; ce sont les algorithmes à état de lien ;
+		\item décentralisée : les routeurs ne connaissent que les voisins physiquement connectés et les coûts pour aller vers ces voisins. Le processus est itératif, il y a un échange d'informations entre les voisins ; ce sont les algorithmes à vecteur de distances.
+	\end{itemize}
+	
+	L'algorithme peut être
+	
+	\begin{itemize}
+		\item statique : les routes changent doucement au cours du temps
+		\item dynamique : les routes changement plus rapidement ; il y a une mise à jour périodique et une réponse aux changements des coûts des liens.
+	\end{itemize}
+
+% Notes 29 - 4 - 2011
+
+	\subsection{Etat de lien - link state}	
+	
+	Protocole le plus répandu ; le réseau est considéré comme un graphe. Chaque noeud est un routeur, qui connaît bien son voisinage. Il va former un paquet qui l'identifie et qui va décrire l'état de ses liens direct, et va diffuser ce paquet dans la topologie (diffusion en broadcast).
+	
+	Les paquets contiennent les distances entre les voisins, selon une métrique. Tout le monde possède tous les états des liens, ce qui permet de reconstruire le graphe.
+	
+	A partir de ce graphe, on cherche le plus court chemin avec l'algorithme de Dijkstra.
+	
+		\subsubsection{Algorithme de Dijkstra}
+		
+		Fréquemment utilisé dans les routeurs. Il va chercher les chemins de moindre coût pour atteindre tous les noeuds. On sait ainsi par quelles interfaces de sortie on doit passer ; tout est stocké dans la table d'acheminement.
+				
+		On obtient alors un spanning tree, qui permettra de calculer la table d'acheminement, et qui indique pour chaque destination le point de sortie.
+		
+		Notations : 
+		\begin{itemize}
+			\item $c(x, y)$ est le coût d'un lien du noeud $x$ au noeud $y$. Vaut $\infty$ s'ils ne sont pas voisins 				\item $D(v)$ la valeur courante du coût du chemin de la source vers la destination $v$ 				 				\item $p(v)$ le noeud précédent dans le chemin depuis la source jusque $v$ 				\item $N'$ l'ensemble des noeuds fixés, qui appartiennent au chemin de moindre coût 			\end{itemize} 			 			Si on exécute l'algorithme dans un noeud u : 			\dessin{79} 			 			Exemple. 						 			\dessin{80} 			 			Naïvement, l'algorithme est quadratique si on parcoure chaque fois tous les noeuds à chaque itération. En maintenant la liste triée, on a une exécution en $n \log n$ (avec une file  priorité).
+
+		L'algorithme est bon si les métriques sont statiques. Si les métriques changent, c'est-à-dire si le coût d'un lien varie (par exemple le trafic), il faudrait chaque fois tout recalculer vu que les plus courts chemins risquent de changer. 
+		
+		De plus, des oscillations sont possibles lorsque les coûts des liens dépendent du trafic. Par exemple :
+		
+		\dessin{81}
+		
+		Une solution est de s'assurer que les routeurs n'exécutent pas l'algorithme en même temps.
+		
+		$\rightarrow$ avoir des métriques dynamiques peut être dangereux, une modification en temps réelle n'est pas conseillée.
+		
+		On diffuse globalement son estimation locale.
+		
+		
+	\subsection{Vecteurs de distances - distance vector}
+	
+	Historiquement c'est le premier, il n'est plus utilisé sauf dans des petits réseaux Il est basé sur la connaissance des voisins d'un noeud, et non du graphe en entier. On utilise l'équation de Bellman-Ford pour converger vers la bonne valeur.
+	
+	C'est un algorithme
+	
+	\begin{itemize}
+		\item itératif, car il continue tant qu'on ne reçoit pas de l'information des voisins
+		\item asynchrone, car il se déclenche lors de la réception d'informations
+		\item distribué, car il reçoit des informations de ses voisins et renvoie ses propres résultats
+	\end{itemize}
+	
+	On définit $d_x(y)$ comme le coût du chemin de moindre coût qui va de $x$ à $y$. On a alors, si le minimum est appliqué à tous les voisins $v$ de $x$.
+	
+	$$d_x(y) = \min_v \ens{c(x, v) + d_v(y)}$$
+
+	Soient
+	
+	\begin{itemize}
+		\item $D_x(y)$ : le moindre coût estimé de $x$ à $y$
+		\item $c(x,v)$ : pour un noeud $x$, le coût pour accéder à ses voisins $v$
+	\end{itemize}
+	
+	Un noeud $x$ maintient deux vecteurs :
+	
+	\begin{itemize}
+		\item un vecteur de distances, où figurent tous les noeuds du réseau : $ \mathbb{D}_x = [D_x(y) : y \in N] $
+		\item les vecteurs de distances de ses voisins : $ \mathbb{D}_v [ D_v(y) : y \in N]$
+	\end{itemize}
+	
+	L'idée de base est la suivante :
+	
+	\begin{itemize}
+		\item chaque noeud envoie périodiquement son vecteur de distances estimé à ses voisins
+		
+		\item quand un noeud $x$ reçoit un nouveau vecteur de distances d'un de ses voisins, il met à jour son propre vecteur en utilisant l'équation de Bellman-Ford :
+		
+		$$D_x(y) \leftarrow \min_v \ens{ c(x, v) + D_v(y)} \text{ pour chaque noeud } y \in N$$
+		\item dans des conditions normales, $D_x(y)$ converge vers le moindre coût $d_x(y)$
+		
+		\item asynchrone : lors d'un changement de topologie ou d'un coût, il y a un message de mise à jour des vecteurs de distance envoyé aux voisins.
+		
+		\item distribué : chaque noeud ne réagit que quand son vecteur de distance change.
+	\end{itemize}
+
+	Pour que ça converge, il faut que les coûts ne soient pas négatifs. Le pire serait un cycle négatif, car l'algorithme va boucler vu que le cycle améliore la distance.
+
+On diffuse localement (aux voisins) une connaissance globale (les estimations).
+
+	Exemple.
+	
+	\dessin{117}
+	
+	Il y a autant de colonnes que de noeuds dans le réseau, et autant de lignes que de voisins.
+	
+	L'algorithme se met bien à jour si une métrique diminue, tous les noeuds convergeront rapidement.
+	
+	Par contre, si une métrique augmente (ou si un noeud tombe en panne), cela va dégénérer. Pour atteindre la connaissance qu'un noeud n'est plus accessible, il faudra du temps. Idem si une métrique augmente : il y a des incrémentations d'une unité jusqu'à ce que ça se stabilise, après de nombreuses itérations et messages).
+	
+	
+	\dessin{118}
+	
+	Il y a 44 itérations car :
+	
+	\begin{itemize}
+		\item y saura que pour accéder à x, il y a 60, mais il peut passer par z qui peut y accéder en 5. Donc $D_y(x) = 6$
+		\item z va détecter le changement et choisira $\min{6 + 1, 50} = 7$
+		\item y va détecter le changement et choisira $\min{7 + 1, 60} = 8$
+		\item \dots
+		\item z va choisir $\min{51, 50} = 50$, au lieu de passer par y il utilisera directement son lien de poids 50. Il sera stabilisé
+		\item y détectera le changement et $d_y(x) = 51)$
+	\end{itemize}
+	
+	Il y a une boucle de routage entre $y$ et $z$.
+	
+	Une correction est possible, le poisoned reverse, appelé aussi le split-horizon : on diffuse des  "mensonges" entre les routeurs. Un noeud ne diffuse un mensonge à un noeud que si, pour accéder à un autre noeud, il doit passer par ce noeud qui passe par lui-même pour accéder à l'autre noeud. Pour le savoir, en plus de donner leur vecteur de distances, les noeuds voisins vont indiquer leur next-hop.
+	
+	Par exemple, C va indiquer à B que sa distance par rapport à A est infinie. Ainsi, B n'ira pas vers A via C.
+	
+	\dessin{119}
+	
+	Cependant cela risque toujours de cycler, par exemple si le lien CD tombe en panne.
+	
+	\dessin{120}
+	
+	C va détecter que le lien est cassé, il passe sa distance à $\infty$ et notifie A et B. A voit qu'il peut passer par B et B par A pour aller en D, ils mettent à jour leurs distances.
+	
+	C reçoit les mises à jour et voit qu'il peut passer par A. Il met à jour sa distance et la propage. Dans le même temps, A et B détectent qu'il y a un problème (car pour accéder à D, ils passent par l'autre noeud qui passe par eux-même), le poisoned reverse est activé et ils mentent sur leur distance à D.
+	
+	B voit qu'il peut passer par C pour aller à D, il met à jour sa distance en passant par C. A voit qu'il peut passer par C, mais que C passe par A, donc il ment encore. C voit qu'en A la distance à D est $\infty$ de même qu'en B, sa distance devient $\infty$ aussi.
+	
+	A voit qu'il peut passer par B, il met à jour sa distance. B voit que la distance de C est $\infty$, idem pour A, donc sa distance reste $\infty$ . C voit qu'il peut passer par B, mais qui lui-même passe par C. Il ne peut passer par A car sa distance est $\infty$, du coup sa distance reste $\infty$.
+	
+	
+	
+	\subsection{Comparaison des algorithmes LS et DV}
+	
+	En complexité de messages :
+	
+	\begin{itemize}
+		\item LS : avec $n$ noeuds et $E$ liens, $\bigoh(nE)$.
+		\item DV : les échanges se font uniquement entre les voisins, le temps de convergence peut varier très fort.
+	\end{itemize}
+	
+	En vitesse de convergence
+	
+	\begin{itemize}
+		\item LS : algorithme en $\bigoh(n \log n)$, avec la nécessité de $\bigoh(nE)$ messages. Il peut y avoir des oscillations
+		\item DV : le temps de convergence varie. Il peut y avoir des boucles dans le routage, tout comme des problèmes de comptage  l'infini.
+	\end{itemize}
+	
+	En robustesse, ce qui se passe lorsqu'un routeur tombe en panne.
+	
+	\begin{itemize}
+		\item LS : un noeud peut prévenir d'un coût d'un lien incorrect. Chaque noeud calcul sa propre table
+		\item DV : un noeud peut prévenir d'un coût de chemin incorrect. Chaque table d'un noeud est utilisés par les autres, l'erreur se propage à travers le réseau
+	\end{itemize}
+	
+	\subsection{Routage hiérarchisé}
+	
+	Le routage doit être hiérarchisé, sinon il y aurait des millions d'entrées à stocker dans les tables de routage des modems, et les messages envoyés pour les calculs pollueraient la bande passante.
+	
+	De plus, chaque administrateur système pourrait vouloir contrôler le routage de son propre réseau
+	
+	On définit un AS comme un système autonome (ISP, opérateur réseau, etc), un domaine où il y a un administrateur qui décide du protocole de routage pour un ensemble de routeurs.
+	
+	\dessin{121}
+	
+	On distingue le routage intra-domaine (intra-AS) et le routage inter-domaine (inter-AS). Il y aura des routeurs particuliers, à la périphérie d'un AS, qui font le lien avec un AS voisin : ce sont des passerelles (gateway).
+	
+	Le routage intra-domaine peut être de n'importe quel type, l'administrateur réseau fait comme il lui plaît. Le routage inter-domaine par contre doit être le même, sinon il n'y aurait aucune coordination entre les AS.
+	
+	Pour un routage interne à un AS, seul le protocole intra-domaine sera utilisé. Pour un routage externe, il faudra les deux, car il faudra trouver le point de sortie.
+	
+
+\section{Routage dans l'Internet}
+
+Pour le routage intra-AS, il y a RIP, OSPF, IS-IS (intermediate system to intermediate system) et IGRP (interior gateway routing protocol).
+
+	\subsection{RIP}
+	
+	RIP (Routing Information Protocol) est un algorithme de vecteur de distances. Les liens sont toujours unitaires, et on définit qu'il y aura maximum 15 hops, 16 hops étant considérés comme infini. 0 hop signifie que ce n'est pas accessible. S'il n'y a pas de hop à effectuer, au minimum 1 hop enregistré dans la table.
+	
+	\dessin{128}
+	
+	Les vecteurs de distances sont échangés entre les voisins toutes les 30 secondes via des Response Message, appelés aussi advertisement.
+	
+	Si un lien ou un voisin ne répond pas après 180 secondes, il est considéré comme déconnecté et un advertisement est envoyé. Le poison reverse est utilisé pour éviter des boucles.
+	
+	Les tables de routage RIP sont gérées par la couche applicative par un processus (un daemon, route-d). Les advertisement sont envoyés dans des paquets UDP.
+	
+	\dessin{129}
+	
+	Une table RIP est une table de routage qui contient les vecteurs de distances et la table d'acheminement.		
+	
+	\dessin{137}
+	
+	\subsection{OSPF}
+	
+	OSPF (Open Shortest Path First) est un algorithme à état de lien public. La topologie du réseau est connue dans tous les noeuds.
+	
+	Un advertisement OSPF comporte une entrée pour chaque voisin du routeur qui l'a envoyé. Ils sont disséminés dans l'AS entier via du flooding. Les messages OSPF sont envoyés directement via IP, sans passer par TCP ou UDP.
+	
+	Avantages par rapport à RIP :
+	
+	\begin{itemize}
+		\item sécurité : tous les messages OSPF sont authentifiés ;
+		\item il est permit d'avoir plusieurs chemins de moindre coût ;
+		\item pour chaque lien, on peut avoir plusieurs métriques (par exemple on cherche à minimiser la charge ou le délai) ;
+		\item multicast ;
+		\item OSPF hiérarchisé dans des grands domaines.
+	\end{itemize}
+	
+	Les mises à jour se font toutes les 30 minutes, il y a envoi d'un paquet d'état de lien.
+	
+		\subsubsection{OSPF hiérarchisé}
+		
+		\dessin{130}
+		
+		On distingue deux niveaux : les local area et le backbone. Chaque message à état de lien ne s'applique que dans les local area ; chaque noeud connaît le plus court chemin vers les réseaux de toutes les local area.
+		
+		On distingue 3 types de routeur :
+		
+		\begin{itemize}
+			\item les routeurs au bord des area : ils synthétisent les distances des réseaux dans leur zone et les affichent aux autres routeurs de bord de zone
+			\item les routeurs backbone, qui lancent OSPF en se limitant au backbone
+			\item les routeurs de bord (boundary routers), qui sont connectés à d'autres AS.
+		\end{itemize}
+	
+	\subsection{BGP}
+	
+	BGP (Border Gateway Protocol) est le standard pour le routage inter-AS. Il permet de montrer au reste d'Internet que des réseaux existent et fournit un moyen à chaque AS de
+	
+	\begin{itemize}
+		\item obtenir les informations d'accessibilité des AS voisins
+		\item propager les informations d'accessibilité à tous les routeurs internes de l'AS
+		\item déterminer les bonnes routes en se basant sur ces informations et la politique de l'AS
+	\end{itemize}
+	
+	Les paires de routeurs (BGP peers) échangent des informations à travers des connexions TCP semi-permanentes, ce sont des sessions BGP.
+	
+	\dessin{131}
+
+	Quand un AS informe un autre de préfixes, il promet qu'il peut router n'importe quel datagramme qui correspond à un de ces préfixes. 
+	
+	Lors qu'un préfixe est reçu par un routeurs de bord à travers une session eBGP, il va distribuer le nouveau préfixe à tous les routeurs de l'AS à travers des sessions iBGP, et il va prévenir les autres AS auxquel il est connecté des nouvelles informations d'accessibilité. Chaque routeur va créer une entrée pour le préfixe dans sa table d'acheminement.
+	
+	
+	Lorsqu'un préfixe est envoyé, il est accompagné d'attributs qui forment la route ; il y a deux attributs importants :
+	
+	\begin{itemize}
+		\item AS-Path : c'est la liste des AS qu'il faut traverser. BGP est un algorithme à chemin de vecteur ; AS-Path est propagé, alors que dans un protocole DV seule la distance est envoyée
+		\item NEXT-HOP : indique quel routeur interne à l'AS utiliser pour atteindre le prochain AS, le next hop (car il peut y avoir plusieurs chemins)
+	\end{itemize}
+	
+	Un routeur gateway, lorsqu'il reçoit des informations de routage, peut pratiquer une politique qui en accepte ou en décline. Ainsi, quand un AS se voit dans l'AS-Path, il le jette directement pour ne pas créer de boucle. C'est plus puissant que le poisoned reverse et c'est possible grâce à cet AS-Path.
+	
+	\dessin{132}
+	
+	
+	Un routeur peut apprendre qu'il y a plus d'une route pour un préfixe, il faut donc en choisir une. Il y a des règles d'élimination :
+	
+	\begin{enumerate}
+		\item une politique de l'AS, qui mettrait un attribut en avant
+		\item le plus court AS-Path
+		\item hot potato routing : on choisit le chemin où le routeur de next-hop (pour passer au prochain AS) est le plus proche
+		\item critères additionnels
+	\end{enumerate}
+			
+	%Les messages BGP de type UPDATE permettent de mettre à jour une route en particulier (pour ne pas tout renvoyer).
+	
+	BGP envoie des messages en utilisant TCP :
+	
+	\begin{itemize}
+		\item OPEN : ouvre une connexion TCP à un peer et authentifie l'émetteur
+		\item UPDATE : affiche un nouveau chemin, pour ne mettre à jour qu'une route en particulier et ne pas tout renvoyer
+		\item KEEPALIVE : garde une connexion ouverte en l'absence d'UPDATEs. Il permet aussi d'acquitter les messages OPEN
+		\item NOTIFICATION : rapporte des erreurs dans les messages précédents. Est aussi utilisé pour fermer une connexion.
+	\end{itemize}
+	
+	Politique d'importation et d'exportation de BGP : décider qui on choisit lorsqu'on reçoit des routes et ce qu'on désire montrer ou pas. Exemple de politique :
+	
+	\dessin{133}
+	
+	\begin{itemize}
+		\item X n'affichera pas qu'il peut router des paquets de B vers C en passant par lui-même.
+		\item A prévient B du chemin AW et B prévient X du chemin BAW. B ne devrait pas prévenir C qu'il connaît BAW, car B n'a pas d'avantages à router BCAW, vu que C et W ne sont pas des clients de B. B va alors vouloir forcer C à router vers W via A ; B ne veut router que depuis et vers ses clients.
+	\end{itemize}
+	
+	Pourquoi distinguer le routage inter et intra-AS :
+	
+	\begin{itemize}
+		\item politique :
+		
+		\begin{itemize}
+			
+			\item intra-AS : il n'y a qu'un seul administrateur, il n'y a pas de politique à appliquer
+			\item inter-AS : un AS veut contrôler comment le trafic est routé et qui traverse son réseau
+		\end{itemize}
+		\item échelle : le routage hiérarchique permet de préserver la taille des tables et de diminuer le trafic de mise à jour
+		\item performance :
+		
+		\begin{itemize}
+			\item intra-AS : peut se focaliser sur les performances
+			\item inter-AS : la politique prédomine sur les performances
+		\end{itemize}
+	\end{itemize}
+	

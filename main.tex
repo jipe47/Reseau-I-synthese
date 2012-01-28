@@ -1,0 +1,38 @@
+\documentclass[10pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb} 
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage{fullpage}
+\usepackage{verbatim}
+\usepackage[margin=1.5cm]{geometry}
+
+\newcommand{\bigoh}{\mathcal{O}}
+
+\author{Jean-Philippe Collette}
+\title{Synthèse Introduction aux réseaux}
+\usepackage{framed}
+
+\newenvironment{cadre}{\begin{framed} \begin{minipage}{0.9\textwidth}}{\end{minipage} \end{framed}}
+
+\newcommand{\ens}[1]{\lbrace #1 \rbrace}
+\newcommand{\ensemble}[1]{\lbrace #1 \rbrace}
+\newcommand{\dessin}[1]{\begin{center}\includegraphics[scale=0.6]{images/#1.png}\end{center}}
+\newcommand{\dessinS}[2]{\begin{center}\includegraphics[scale=#2]{images/#1.png}\end{center}}
+
+\newcommand{\n}{~\\}
+
+\makeindex
+\begin{document}
+\maketitle
+\tableofcontents
+
+\include{0-intro}
+\include{1-couche-applicative}
+\include{2-couche-transport}
+\include{3-couche-reseau}
+\include{4-couche-lien}
+	
+\end{document}

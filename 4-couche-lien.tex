@@ -1,0 +1,530 @@
+\chapter{La couche lien}
+
+La couche lien s'occupe de la connexion d'un noeud à un autre via les interfaces. Elle offre les services suivants :
+
+\begin{itemize}
+\item la mise en trame et l'accès à un canal
+\item le transport fiable entre deux noeuds
+\item le contrôle de flux
+\item la détection et la correction d'erreurs (causées par le bruit)
+\item half- et full-duplex.
+\end{itemize}
+
+Cette couche est implémentée dans les NIC, c'est un mélange de software et d'hardware. Toutes les couches supérieures sont software.
+
+\section{Détection d'erreurs}
+
+On transmet une trame accompagnée d'un code de détection d'erreur, des bits de redondance. Parfois, on inclut suffisamment de données pour permettre des corrections. Les données sont protégées par cette vérification, mais cela peut aussi inclure les headers.
+
+\dessin{122}
+
+Un code de détection d'erreur n'est pas toujours fiable, par exemple le bit de parité est correct s'il y a deux modifications de bits, ou si le bit de parité est lui-même changé.
+
+Une erreur peut toujours s'y glisser ; en incluant de plus grands champs d'ED(C) (Error Detection (and Correction)) on en repère plus et mieux. Il y a toujours au minimum un bit d'overhead pour détecter une erreur.
+
+On peut intégrer un système de réparation naïf avec des bits de parité pour du texte en deux dimensions.
+
+\dessin{123}	
+
+Une forme carrée est la plus optimale. Pour n bits, les côtés font $\sqrt{n}$ ;  l'overhead en plus est donc proportionnel à $\sqrt{n}$.
+
+Le mieux que l'on puisse faire, pour détecter ou corriger un bit erroné, se fait en $\log_2n$.
+
+	\subsection{Le checksum d'Internet}
+	
+	Le but est donc, dans la couche de transport, de détecter des erreurs dans les segments.
+	
+	L'émetteur traite le segment comme des séquences de bits. Il génère le checksum en prenant la somme en complément à 1 du contenu des segments, et le place dans le champ de checksum.
+	
+	Le récepteur fera la même somme et comparera à ce qui est contenu dans le champ checksum.
+
+	Le checksum d'Internet n'est pas plus performant qu'un bit de parité. Il se trouve dans la couche de transport car elle est implémentée en software, il faut donc un code facile à calculer. Le CRC est en hardware, ce qui rend l'exécution rapide.
+
+	\subsection{CRC - Cyclic Redundancy Check}
+	
+	On voit les données comme un nombre binaire $D$. On choisit un générateur $G$ de $r + 1$ bits.
+	
+	On introduit un code $R$ de $r$ bits au début de la trame de façon à ce que toute la trame soit divisible par $G$ en modulo 2.
+	
+	Le récepteur connaîtra $G$ et n'aura qu'à diviser $\langle D R \rangle$ par $G$ en modulo 2 : si le résultat n'est pas nul, il y a une erreur.
+	
+	\dessin{124}
+	
+	Ce code peut détecter des séquences d'erreurs $\leq$ $r$ bits et est largement utilisé en pratique.
+			
+	Le $R$ peut se déduire facilement :
+	
+	$$D . 2^r \text{ XOR } R = n G \Leftrightarrow D.2^r = nG \text{ XOR } R$$
+	
+	Après avoir appliqué un XOR à gauche et à droite. Cela équivaut à diviser $D.2^r$ par $G$ en base 2 et à en prendre le reste. Dans cette division on ne tient pas compte des restes et des emprunts ; faire + ou - revient au même. On obtient alors
+	
+	$$R = \text{reste}( \frac{D . 2^r}{G} )$$
+	
+	Exemple
+	
+	\dessin{125}
+	
+	On prend souvent une vue polynômiale pour les bits ; par exemple, $1101 \Leftrightarrow x^3 + x^2 + 1$. On a alors que la trame transmise
+	
+	$$T(x) = D(x) . x^r - R(x)$$
+	
+	doit être divisible par $G(x)$ pour qu'elle soit correcte.
+	
+	Supposons qu'une erreur $E(x)$ a été intégrée à la trame : elle vaut alors $T(x) + E(x)$, le récepteur calculera $ \frac{T(x) + E(x)}{G(x)} $. Le reste sera alors égal à $ \frac{E(x)}{G(x)}$ ; si $E(x)$ n'est pas un multiple de $G(x)$, alors l'erreur sera détectée. De ce fait, $G(x)$ ne doit pas être choisit n'importe comment.
+	
+	Situations où une erreur passe inaperçue : $G(x) = x^3 + 1$, $E(x) = x^3 + 1$ ou $E(x) = x^4 + 1$, car $G(x)$ divisible par ces nombres.
+	
+	Il faut toujours un $G(x)$ avec un nombre pair de terme, car il détectera automatiquement les cas où il y a un nombre impair de bits d'erreur dans la trame (si x = 1 dans $G(x) = x^{16} + x^{12} + x^5 + 1 = (x + 1) P(x)$, zéro à gauche et à droite. $E(x) = x^2 + x + 1$ n'est pas divisible par $x + 1 $). On fait au moins aussi bien qu'un bit de parité.
+	
+	Le bit de parité est un cas particulier où $G(x) = x + 1$ (ou $G(x) = x$) ; $r = 1$, donc $G$ doit être d'ordre 1.
+	
+	Généralement, les erreurs ne sont pas isolées, elles se font en rafale localisée dans une zone de $n$ bits. La rafale commence et se termine par un bit erroné (les bits entre peuvent être corrects ou non). Toute rafale de $n$ inférieur à l'ordre de $G(x)$ est détectable.
+	
+	%$$\underset{x \dots x}{E(x) (n bits)} \underset{\dots}{k}$
+	
+	Soit $E(x) = E'(x) . x^k$ , avec un entier $k$ et $E'(x)$ la rafale d'erreurs. Si le degré de $G$ est $r$ et celui de $E' < r$, un polynôme de degré inférieur ne sera jamais divisible, du coup d'erreur sera toujours détectable.
+	$$ \frac{E(x)}{G(x)} $$
+	
+	C'est divisible par une polynôme de 16 bits, par exemple $G(x)$ lui même.
+	
+
+\section{Protocole à accès aléatoire}
+
+C'est une famille de protocoles permettant l'accès à une ressource partagée, ici un canal de communication. Il y a une collision quand un noeud reçoit deux ou plusieurs signaux en même temps.
+
+	\subsection{Protocole à accès multiple idéal}
+	
+	Il remplirait les critères suivants :
+	
+	\begin{itemize}
+		\item quand un seul noeud veut transmettre, il le fait à un débit $R$
+		\item quand $M$ noeuds veulent transmettre, chacun le fait à un débit moyen de $\frac{R}{M}$ (équité)
+		\item complètement décentralisé, c'est-à-dire qu'il n'y a pas un noeud spécial qui coordonne les transmissions ni de synchronisation ni de slots.
+		\item simplicité
+	\end{itemize}		
+	
+	
+	On distingue 3 classes de protocoles :
+	
+	\begin{itemize}
+		\item le partitionnement du canal : on a une division du canal (slots temporels ou de fréquence), et on alloue chacune de ces divisions à un noeud
+		\item les protocoles à accès aléatoire : le canal n'est pas divisé, ce qui génère des collisions dont on peut récupérer. Ces protocoles spécifient comment détecter les collisions et les récupérer.
+		\item les protocoles "taking turns" : les noeuds peuvent utiliser le canal à tour de rôle
+	\end{itemize}
+	
+	Une division temporelle ou par fréquence n'est pas optimale, car dans les deux cas il y a des slots qui restent inutilisés.
+
+% Notes 06 - 05 - 2011
+
+	\subsection{Slotted ALOHA}
+	
+	On suppose que
+	
+	\begin{itemize}
+		\item toutes les trames ont la même taille
+		\item le temps est divisés en slots de même taille, et suffisamment long pour transmettre une trame
+		\item les noeuds sont synchronisés
+		\item si 2 ou plus noeuds transmettent dans un slot, tous les noeuds peuvent détecter la collision
+	\end{itemize}
+	
+	Lorsqu'un noeud reçoit une trame à envoyer, il la transmet dans le prochain slot. 
+	
+	\begin{itemize}
+		\item S'il n'y a pas de collision, le noeud attend une nouvelle frame à envoyer. 
+		\item S'il y a collision, le noeud retransmet la trame dans le prochain slot avec une probabilité $p$, et ce jusqu'à y arriver sans collision.
+	\end{itemize}
+	
+	\dessin{82}
+	
+	Avantages :
+	
+	\begin{itemize}	
+		\item un seul noeud utilise tout le canal pour transmettre
+		\item tout est décentralisé, il suffit juste d'une synchronisation
+		\item simple
+	\end{itemize}
+	
+	Inconvénients :
+	
+	\begin{itemize}
+		\item avec les collisions, il y a des slots gaspillés
+		\item des slots sont inutilisés
+		\item les stations ne se rendent pas compte qu'elles créent des interférences ;
+		\item nécessité d'une synchronisation
+	\end{itemize}
+	
+		\subsubsection{Calcul de l'efficacité}
+		
+		On va supposer $N$ noeuds avec plusieurs trames à envoyer, chacun transmet dans un slot avec une probabilité $p$.
+		
+		La probabilité pour qu'un noeud  ait accès à un slot est $p (1 - p)^{N - 1}$.
+		
+		La probabilité pour que tous les noeuds ait accès est $N p (1 - p)^{N - 1}$.
+		
+		Pour maximiser l'efficacité avec $N$ noeuds, on a $p^* = \frac{1}{N}$. Pour tous les noeuds, il faut prendre la limite de l'expression $N p^*(1 - p^*)^{N - 1} = (1 - \frac{1}{N})^{N - 1}$ avec $N$ qui tend vers l'infini, ce qui donne $\frac{1}{e} = 0.37$.
+		
+		Donc au mieux 37\% des transmissions sont utiles dans le canal.
+	
+	\subsection{ALOHA pur}
+
+	Il n'y a pas de slots ni de synchronisation. Quand une trame arrive, elle est transmise immédiatement. 		
+	
+	\dessin{83}
+	
+	La probabilité de collision augmente, car une frame envoyée au temps $t_0$ peut entrer en collision avec les frames dans l'intervalle $[t_0 - 1, t_0 + 1]$.
+	
+		\subsubsection{Calcul de l'efficacité}
+		
+		$$P(\text{succès}) = P(\text{le noeud transmet}) .  P(\text{pas de transmission dans } [t_0 - 1, t_0]) .  P(\text{pas de transmission dans } [t_0, t_0 + 1])$$
+
+		$$= p (1 - p)^{N - 1} (1 - p)^{N - 1} = p(1 - p)^{2 (N - 1)}$$
+		
+		La probabilité de succès pour tous les noeuds est $Np(1 - p)^{2 (N - 1)}$. Si on prend un $p$ optimal et $N$ qui tend vers l'infini, on obtient $\frac{1}{2e} = 0.18$, soit 18\% d'efficacité.
+	
+	
+		\underline{Efficacité par rapport au trafic moyen} : soit $G = pN$ la moyenne de trafic agrégé (ou demandé) par unité de temps. C'est le nombre de tentatives de transmissions par unité de temps ; N stations tentent d'envoyer une frame avec une probabilité $p$ à chaque unité de temps.
+		
+		Pour le slotted ALOHA, l'efficacité est
+		
+		$$N p (1 - p)^{N - 1} = G (1 - \frac{G}{N})^{N - 1}$$
+		
+		Si $N$ est très grand, pour un $G$ donné, l'efficacité tend vers $G . e^{-G}$
+		
+		Pour l'ALOHA pur, on a l'efficacité
+		
+		$$N p (1 - p)^{2(N - 1)} = G (1 - \frac{G}{N})^{2(N - 1)}$$
+	
+		Si $N \gg$, cela tend vers $G e^{-2G}$.
+		
+		Si $G$ est plus petit que 1, on a des bons résultats.
+		
+		\dessin{135}
+		
+		
+	\subsection{CSMA}
+	
+	Amélioration de ALOHA : on écoute le canal avant d'émettre. S'il semble libre, on émet ; s'il est occupé, on reporte la transmission (LBT - listen before talking).
+	
+	
+	Une collision peut toujours se produire lorsque le canal devient libre : toutes les stations vont tenter d'émettre, alors qu'elles ne s'entendent pas. Tous les paquets transmis sont gaspillés ; la distance et le délai de propagation sont à prendre en compte.
+	
+	\dessin{84}
+	
+	On peut définir deux sortes de CSMA :
+	
+	\begin{itemize}
+		\item CSMA non persistant : si le canal est occupé, on réessaie plus tard
+		\item CSMA persistant (ou p-persistant) : si le canal est occupé, on écoute jusqu'à ce qu'il soit libre
+	\end{itemize}		
+	
+	\dessin{85}
+	
+	C'est un équilibre entre l'efficacité et le délai : cela introduit un délai inutile dans les charges faibles, mais l'efficacité est meilleure à des plus grandes charges.
+	
+	\dessin{86}
+	
+	Soient
+	
+	\begin{itemize}
+		\item $B$ le débit du canal
+		\item $F$ la taille de la trame
+		\item $L$ la longueur du canal
+		\item $c$ la vitesse de propagation
+		
+		\item $\tau$ le délai de propagation : $ \frac{L}{c} $
+		\item $T$ le délai de transmission : $ \frac{F}{B} $
+	\end{itemize}
+	
+	$\tau$ est aussi le temps de contension ; une collision est possible au début d'une transmissions, s'il n'y en a pas eu après un temps $\tau$, il n'y en aura pas.
+	
+	$$\alpha = \frac{\tau}{T} = \frac{BL}{cF}$$
+	
+	Il vaut mieux ne pas couper les trames, car il faudra récupérer le canal autant de fois qu'il y a de coupures. En transmettant tout d'un coup, on ne demande la ressource qu'une fois.
+	
+	Lorsqu'on a acquis la ressource, $\tau$ est le temps pendant lequel il peut y avoir une collision, car les bits ne se sont pas propagés complètement. Après, pendant la durée $T - \tau$, il n'y a plus aucun risque de collision. Réduire les risques de collisions (donc augmenter l'efficacité du système) revient à minimiser $\tau$. Le fait de segmenter la trame n'est pas une bonne idée, sinon il y a autant de risques de collision que de coupures.
+	
+	\subsection{CSMA/CD}
+	
+	CSMA avec une détection de collision : la station s'écoute elle-même, et si l'écoute est différente de ce qu'on émet, alors il y a collision. C'est facile sur les réseaux câblés, il suffit de comparer la force des signaux, mais c'est plus compliqué en sans-fil.
+	
+	\dessin{87}
+	
+	La trame doit avoir une longueur minimale, sinon une station peut émettre sans se rendre compte qu'il y a eu collision.
+	
+	\dessin{88}
+	
+	Il faut donc que $T > 2\tau$, donc que $\frac{F}{B} > 2 \frac{L}{c}$, ce qui conduit à
+	
+	$$F_{\text{min}} = 2 \frac{BL}{c} = \pm BL 10^{-8} \text{ bits}$$
+	
+	Ethernet a choisit une longueur de 64 bytes, soit 512 bits (avec des marges supplémentaires à cause des autres délais).
+	
+	\subsection{Protocoles Taking turns}
+	
+	Protocoles tentant d'avoir les avantages des protocoles à accès aléatoires et des protocoles à partitionnement de canal.
+	
+		\subsubsection{Polling}
+		
+		
+		\dessin{89}
+		
+		Un noeud maître invite des noeuds esclaves à transmettre tour à tour. C'est un système généralement utilisé lorsque les périphériques esclaves sont simples, "dumb".
+		
+		Les problèmes sont le surplus qu'entraînent les headers de polling, la latence, et le fait qu'il n'y a qu'un seul point critique (le maître).
+		
+		\subsubsection{Token passing}
+		
+		\dessin{90}
+		
+		Un jeton de contrôle est passé d'un noeud à l'autre de manière séquentielle. Il s'agit d'une trame avec un contenu particulier, qui permet à celui qui la reçoit de transmettre sur le canal.
+		
+		Les problèmes sont les overheads, la latence, et la présence d'un seul point critique (le jeton, qui peut être perdu ; il faudra décider qui en relance un).
+	
+\section{Adressage}
+
+Un adressage est nécessaire où il y a de multiples destinataires à l'écoute.
+
+
+Une adresse MAC (ou LAN ou physique ou Ethernet) ne sert pas à localiser un hôte (car on sait déjà où il se trouve via l'IP), c'est un identifiant. Chacune de ces adresses MAC est sur 48 bits et est unique. Elles ne dépendent pas de la localisation, donc elles ne changent pas.
+
+A titre de comparaison, les IPs sont des adresses hiérarchiques qui permettent surtout d'atteindre le dernier routeur, soit le subnet de destination. Elles peuvent changer dans le temps, elles ne sont donc pas portables.
+
+Il faut un protocole pour pouvoir déterminer une adresse MAC à partir d'une adresse IP, on utilise ARP (Address Resolution Protocol): une table ARP contient un mapping d'adresses IP-MAC, avec un TTL (time-to-live). Seules les IP du subnet s'y trouvent.
+
+
+Supposons qu'on veut envoyer une trame à un hôte dont on ne connaît pas l'adresse MAC :
+
+\begin{enumerate}
+	\item On envoie une trame broadcast (FF-FF-FF-FF-FF-FF) qui contient l'adresse IP cherchée, et en indiquant l'adresse MAC source.
+	\item Lorsque l'hôte possédant l'IP recherchée la recevra, il répondra avec son adresse MAC.
+\end{enumerate}
+
+La table ARP permet de faire du caching, pour ne pas redemander tout le temps l'adresse MAC. L'envoi de la trame en broadcast permet de découvrir une association IP-MAC chez tous les hôtes, cela met à jour/ajoute une entrée à la table ARP. C'est un système plug-and-play, il n'y a aucune intervention d'un administrateur dans la création d'une table ARP.
+
+\dessin{91}
+
+
+Lorsque les hôtes se trouvent sur deux subnets différents, lorsqu'on envoie la trame, l'adresse MAC source est celle de A et celle de destination celle du routeur de sortie, et pas celle de B, sinon B serait sur le subnet. Il faut viser le routeur de sortie, qui va décapsuler et remplacer les adresses MAC : l'adresse source sera l'adresse MAC du routeur, la destination sera celle de B. A détecte que le destinataire n'est pas dans le subnet grâce au masque réseau et à l'adresse IP de destination. Au niveau des requêtes ARP (avant d'envoyer la trame), il faut demander l'adresse MAC du routeur ; elles sont locales à un sous-réseau.
+
+
+
+\section{Ethernet}
+
+Au début de son utilisation, une topologie autour d'un bus était très populaire. Tous les noeuds étaient dans le même domaine de collision. Maintenant, une topologie en étoile prévaut : on a un switch central, et chaque machine utilisent un protocole Ethernet séparé. Les noeuds n'engendrent ainsi pas des collisions entre eux.
+
+\dessin{92}
+	
+
+Les raisons du succès d'Ethernet :
+
+\begin{itemize}
+	\item un des premiers protocoles
+	\item simple
+	\item même débits que les autres technologies
+	\item bon marché
+\end{itemize}
+
+\dessin{140}
+
+Une trame Ethernet contient
+
+\begin{itemize}
+	\item les adresses MAC source et de destination
+	\item le CRC
+	\item les données
+	\item des bits de préambule pour synchroniser les clocks de l'émetteur et du récepteur
+	\item le type de protocole de couche supérieur à qui livrer la trame (généralement IP)
+\end{itemize}
+				
+% exponential backup surtout
+	L'Ethernet
+
+\begin{itemize}
+	\item est sans connexion, il n'y a aucun handshaking entre le récepteur et l'émetteur
+	\item non fiable, il n'y a pas d'ACK ou de NAK. S'il y a des trous dans les flux de trames, ils seront rebouchés avec TCP, sinon par les applications.
+	\item utilise CSMA/CD sans slot :
+	
+	\begin{enumerate}
+		\item lors de la réception d'un datagramme, la NIC (Network Interface Card) crée une trame
+		\item si la NIC  constate que le canal n'est pas occupé, il transmet la trame. Sinon, il attend que le canal se libère, ensuite il transmet
+		\item si la NIC transmet la trame entière sans collision, son travail est terminé
+		\item si la NIC détecte une collision lorsqu'il transmet, il s'arrête et envoie  un signal de jam pour s'assurer que tout le monde détecte bien la collision
+		\item après l'annulation, la NIC entre dans le mode de backoff exponentiel : après $m$ collisions rencontrée pour transmettre une même trame, la NIC choisit un $k$ aléatoire dans $[0, \dots , 2^m - 1]$. Il attendra $k \times $ le temps pour transmettre 512 bits et retournera à l'étape 2. 
+	\end{enumerate}
+	
+	L'exponential backoff tente ainsi d'estimer la charge ; plus celle-ci est élevée (donc plus il y a des collisions), plus le délai d'attente risque d'être long. C'est une sorte de CSMA p-persistant, avec un $p$ adaptatif.
+\end{itemize}
+
+	Soit $\alpha$ le nombre moyen de slots avant d'arriver à transmettre. On a l'efficacité $S$ :
+	
+	$$S = \frac{T}{T + \alpha \times 2 \tau} = \frac{1}{1 + \alpha \times \frac{2 \tau}{T}} = \frac{1}{1 + \alpha \times \frac{2 BL}{cF} }$$
+	
+	Pour $N$ grand, $\alpha$ converge vers $e$ pour un CSMA p-persistant avec un $p^*$ idéal de $\frac{1}{N}$.
+	
+	Donc pour un $N$ très grand, l'efficacité ne peut pas être meilleur que $ \frac{1}{1 + e \times \frac{2\tau}{T}} $
+	
+	\dessin{136}
+	
+	Ethernet est baseband, c'est à dire que le signal n'est pas envoyé dans une autre bande de fréquences, il est envoyé tel quel.
+	
+	Il y a plusieurs standards pour les liens Ethernet, alors que le protocole MAC et le format des trames est le même. Il y a différentes vitesses (2/10/100/1000 Mbps) et différents supports physiques (fibre, câble).
+	
+	\dessin{141}
+			
+
+	\subsection{Encodage de Manchester}
+	
+	Généralement utilisé par Ethernet.
+	
+	\dessin{93}
+	
+	Chaque bit possède une transition. Les clocks des noeuds expéditeur et récepteur peuvent ainsi se synchroniser, il n'y a pas besoin d'une clock globale parmi les noeuds. Cet encodage agit au niveau de la couche physique.
+	
+	\dessin{142}
+				
+\section{Switchs et hubs}
+
+Un hub n'agit que sur la couche physique ; pour chaque trame reçue, il va la répéter sur tous les périphériques connectés. Il agit comme un bus. Il régénère le signal (au cas où il serait affaiblit), il n'y a aucune "intelligence".
+
+Il n'y a pas de buffering des trames, ni de CSMA/CD. Des collisions sont donc possibles.
+
+Un commutateur (switch) est plus sophistiqué, il agit sur la couche 2. Il réceptionne les trames, les stocke, vérifie si elles sont complètes, et les transmet au bon destinataire. Il est invisible pour les hôtes. 
+
+Contrairement aux hubs, il a un rôle actif. Ils sont plug-and-play et apprennent par eux-mêmes, ils n'ont pas besoin d'être configurés. Il n'y a plus aucune collision si les liens sont fullduplex (2 paires torsadées pour chaque sens par exemple).
+
+Il y a éclatement des domaines de collision, qui fait que la probabilité d'en avoir une est très faible.
+
+Le switch a besoin d'une table d'acheminement, qui map les adresses MAC aux interfaces ($\neq $ table ARP). Il y a de l'auto-apprentissage, il va lui-même la créer ; chaque fois qu'il reçoit une trame, il peut associer l'adresse MAC source à l'interface d'arrivée. Si l'adresse de destination n'est pas dans la table, on envoie la trame à tout le monde. Il y a donc par moment des inondations avec un switch.
+
+Une trame peut devoir être renvoyée dans l'interface par laquelle elle est entrée dans le switch (par exemple avec un hub connecté à cette interface). Dans ce cas le switch jette la trame.
+
+Ce qui se passe quand un switch reçoit une trame :
+
+\dessin{143}
+
+L'algorithme fonctionne car il n'y a pas de cycle, mais cela diminue la robustesse.
+
+Pour pouvoir utiliser des cycles, il faut construire un spanning tree sur la topologie réelle. On utiliser pour cela des paquets BPDU (Bridge Protocol Data Unit) et on procède ainsi :
+
+\begin{enumerate}
+	\item on détermine le switch racine, le root id. On utilise pour cela des paquets BPDU qui contiennent un triplet $\langle$ id du switch source, la racine supposée, la distance à la racine $\rangle$
+	\item on construit l'arbre ; grâce aux flux de BPDUs, un switch peut connaître sa distance à la racine et quel port y mène en prenant la plus petite distance.
+	
+	\item on décide si les ports non root seront bloquant ou de type forwarding
+\end{enumerate}
+
+\dessin{144}
+
+Le résultat est un spanning tree, qui n'est pas nécessairement optimale (il l'est seulement pour la racine). Il est le même pour toutes les paires source-destination.
+
+Certains switchs ou liens peuvent ne pas être repris dans le spanning trees. Ils peuvent être utiles en cas de défaillance, c'est pour ça que les ports bloquants doivent quand même écouter les BPDUs (mais ne pas laisser passer le reste).
+
+% Notes 20 - 5 - 2011
+
+Comparé à un routeur :
+
+\begin{itemize}	
+	\item les routeurs font partie de la couche réseau, les switchs de la couche lien
+	\item les routeurs effectuent du routage et de l'acheminement IP et implémentent des algorithmes de routage.
+	
+	Les switchs maintiennent des tables d'acheminement MAC, implémentent du filtrage, de l'apprentissage et des algorithmes de spanning tree.
+\end{itemize}
+
+\dessin{127}
+
+\dessinS{126}{.5}
+
+Avantages des switchs :
+
+\begin{itemize}
+	\item il y a élimination des collisions
+	\item les liens physiques peuvent être de plusieurs types
+	\item auto-gestion : si un switch tombe en panne, la reconfiguration est automatique
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{|p{1.5cm}|p{4cm}|p{4cm}|}
+\hline  & Pour & Contre \\ 
+\hline Switch & 
+\begin{itemize}
+\item plug-and-play
+\item filtrage et forwarding à haut débit
+\end{itemize} & 
+\begin{itemize}
+\item il faut prévenir les cycles avec un spanning tree non optimal
+\item gros trafic ARP si le réseau est grand
+\item non protégé contre le broadcast abusif
+\end{itemize}
+\\ 
+\hline Routeur & 
+\begin{itemize}
+\item pas de cycle
+\item le chemin est optimal
+\item firewall
+\end{itemize}
+& 
+\begin{itemize}
+\item pas plug-and-play
+\item il y a plus de temps de processing (3 couches à traiter)
+\end{itemize}
+\\ 
+\hline 
+\end{tabular} 
+\end{center}
+
+Un routeur n'est pas plug and play car il faut définir les subnets, le plan d'adressage.
+
+Un périphérique est cut through si la propagation est directe, c'est-à-dire pas de modèle store-and-forward. Le hub traite directement les bits. Le routeur non, car il y a un traitement. Certains switchs peuvent le faire, mais en général non.
+
+\section{PPP}
+
+C'est un protocole point à point, sans broadcast, avec un émetteur et un récepteur. Il n'y a pas de collision ni de problème d'accès ni de MAC (Media Access Control).
+
+Une implémentation de PPP doit posséder les caractéristiques suivantes :
+
+\begin{itemize}
+	\item il encapsule des datagrammes de la couche lien dans des trames. Il peut prendre des trames de n'importe quel type et est capable de démultiplexage.
+	\item bit transparency : on ne doit retrouver nulle part la séquence de bits qui sert de flag de début et de fin de la trame.
+	\item détection d'erreur, pas de correction
+	\item connection liveness : sorte de battement de coeur, permet de vérifier que le lien fonctionne toujours.
+	\item négociation d'adresse de couche réseau : les points peuvent apprendre/configurer chaque adresse des autres réseaux
+\end{itemize}
+
+PPP ne requiert pas
+
+\begin{itemize}
+	\item de correction/récupération d'erreur
+	\item de contrôle de flux
+	\item de livraison des trames dans l'ordre
+	\item de supporter les liens multipoints (ex : polling)
+\end{itemize}
+
+La récupération d'erreur, le contrôle de flux et le réordonnancement des données est délégué aux couches supérieures.
+
+	\subsection{Trame PPP}
+	
+	Une trame PPP contient les éléments suivants :
+	
+	\begin{itemize}
+		\item des flags, pour délimiter le début et la fin d'une trame
+		\item une adresse (inutile, vu qu'il n'y a qu'un récepteur)
+		\item des bits de contrôles qui ne font rien
+		\item le protocole auquel il faut délivrer la trame (PPP-LCP, IP, etc)
+		\item les informations à transmettre
+		\item un champ de check, pour de la détection d'erreur
+	\end{itemize}
+	
+	\dessin{134}
+	
+	La transparence des données (bit transparency) requiert que l'on puisse quand même transmettre le flag \texttt{01111110} dans les données. En l'état, la trame serait coupée et inutilisable.
+
+	Il y a deux solutions :
+	
+	\begin{itemize}		
+		\item le byte stuffing : on ajoute un flag supplémentaire après celui dans la trame.
+		
+		Le récepteur quand à lui, lorsqu'il détectera les 2 bytes \texttt{01111110} consécutifs, jettera le premier et continuera la réception des données.
+		\item le bit stuffing : l'émetteur ajoute un 0 systématiquement lorsqu'il y a cinq 1 successifs, même si ce n'est pas le fagnon.
+		
+		Le récepteur va supprimer tout zéro qui se trouve après cinq 1. S'il y a six 1 consécutifs, il vérifiera si c'est un flag.
+	\end{itemize}

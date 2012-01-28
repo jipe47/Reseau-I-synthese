@@ -1,0 +1,567 @@
+\chapter{La couche de transport}
+
+\section{Services de la couche de transport}
+
+La couche de transport donne une communication logique entre des processus tandis que la couche réseau fournit une communication logique entre des hôtes, des machines.
+
+La couche de transport segmente les messages à envoyer venant de la couche applicative en segments vers la couche réseau. Il réassemble également les segments reçus par la couche réseau et les redirige vers la couche applicative.
+
+Il y a plus d'un moyen de transport ; pour Internet, il y a deux grands protocoles :
+
+\begin{itemize}
+	\item TCP (Transmission Control Protocol), qui fournit un contrôle de flux et de congestion, est fiable et livre dans l'ordre les paquets. Il nécessite un établissement de connexion ;
+	\item UDP (User Datagram Protocol) : livraison non ordonnée, non fiable. On fait au mieux.
+\end{itemize}
+
+Ces deux protocoles ne garantissent pas les délais ni la bande passante.
+
+
+\section{Multiplexage et démultiplexage}
+	Pour un hôte receveur, le démultiplexage est le fait de délivrer les segments reçus au bon socket. 
+	
+	Pour un hôte expéditeur, le multiplexage est le fait de collecter les données de plusieurs sockets et de les encapsuler avec un header pour ensuite les passer à la couche réseau
+
+	\subsection{Démultiplexage}
+	
+	Un port est codé sur 16 bits. Les 1024 premiers ports sont réservés (HTTP : 80, FTP : 21, etc).
+	
+	Seuls les ports source et de destination sont spécifiés dans un segment, or il devrait y avoir les deux ip. Elles ne sont pas spécifiés par la couche de transport, lorsqu'un segment est passé par la couche réseau, on donne à part les deux IP.
+	
+	Chaque datagramme a donc une adresse ip source, une adresse ip de destination et un segment de la couche de transport, qui spécifie les ports source et de destination.
+	
+	
+	\paragraph{UDP} Un segment UDP est identifié par le port source et le port destination. On n'utilise que le port de destination pour rediriger le segment.
+	
+	Un socket UDP est identifié par deux informations : l'adresse IP de destination et le port de destination.
+	
+	Lorsqu'un hôte reçoit un segment UDP, il regarde le port de destination dans le segment, et le redirige vers le socket associé au port. C'est du démultiplexage sans connexion.
+	
+	\dessinS{27}{.5}
+	
+	
+	
+	\paragraph{TCP}	Un socket TCP est identifié par 4 informations : les IPs source et destination et les ports source et destination. L'hôte receveur utilise les quatre informations pour rediriger le segment vers le socket approprié. C'est un démultiplexage orienté connexion.
+	
+	L'adresse IP est nécessaire pour pouvoir différencier les sockets attachés au même port, notamment quand ils sont générés par un welcoming socket. De plus, cela permet de parer au cas où deux clients auraient le même port source.
+	
+	Ainsi, les serveurs web ont différents sockets sur le port 80 pour connecter chaque client. Les connexions HTTP non persistantes auront différents sockets à chaque requête
+	
+	
+	\dessinS{28}{.5}
+	
+	
+	
+\section{UDP}
+
+Il faut UDP au minimum pour le démultiplexage, et pour ne pas utiliser
+nécessairement TCP et avoir ses ralentissements. On fait au mieux, en contrepartie les segments UDP peuvent être perdus ou délivrés dans le désordre
+
+Raisons d'utilisation d'UDP :
+
+\begin{itemize}
+	\item pas de connexion établie, moins de délai
+	\item très simple, il n'y a pas d'état chez l'expéditeur ou le receveur
+	\item le header des segments est léger
+	\item pas de contrôle de congestion, UDP peut aller aussi vite qu'on veut
+\end{itemize}
+
+C'est un protocole orienté sans connexion, car il n'y a aucun établissement entre le receveur et l'expéditeur UDP, et chaque segment UDP agit indépendamment des autres.
+
+UDP est généralement utilisé dans les applications multimédia en streaming, qui sont tolérantes à la perte et sensibles au débit. Il est utilisé aussi pour DNS et SNMP (network management).
+
+Pour garantir un minimum de fiabilité, au niveau de l'application, on ajoute au segment un checksum pour vérifier si le paquet est arrivé en totalité ou non, pour ainsi ne pas propager l'erreur. C'est similaire  l'utilisation d'un bit de parité, où on garantit qu'il y a toujours un nombre pair de 1. Ce n'est pas totalement fiable, vu qu'on peut échanger des bits ou diminuer le nombre pair de 2.
+
+On va supposer qu'il peut toujours y avoir une erreur qui passe, quelque soit le nombre de bits de contrôle et les moyens de vérification, car le segment peut être modifié pour que la vérification soit correcte.
+
+Un test facile est de sommer les bits, et de complémenter la somme pour former le checksum. Ainsi, quand le receveur récupère le segment, en sommant tous les bits, en tombant sur 0 il sera vérifié. Ce n'est pas à 100\% fiable, par exemple +1 pour un nombre et -1 pour l'autre.
+
+Ce léger test permet un temps de calcul rapide. Les erreurs résiduelles ne sont que peu probables, car auparavant il y a déjà des vérifications et des corrections dans les couches inférieures, ou bien parce qu'il est rare d'avoir des erreurs dans un protocole aussi léger.
+
+
+\section{Principes de fiabilité lors d'un transfert de données}
+
+La fiabilité est important dans les couches applicatives, de transport et de lien. Le service fourni est un canal fiable entre les deux applications.
+
+\dessinS{44}{.7}
+
+On va définir 4 fonctions pour l'implémentation du service.	
+
+\dessin{45}
+
+Les caractéristiques du canal non fiable vont déterminer la complexité du protocole de transfert de donnée fiable (rdt - reliable data transfer).
+
+On va représenter le protocole par une machine d'état finie.
+
+\dessin{46}
+	\subsection{1.0 - Canal fiable}
+	
+	On suppose qu'il n'y a pas d'erreur dans les bits, ni de perte de paquet.
+	
+	\dessin{47}
+	
+	\subsection{2.0 - Canal avec erreurs binaires}
+	
+	Introduction d'un checksum dans le paquet. On renverra un paquet de confirmation (NAK ou ACK) pour savoir s'il faut renvoyer le paquet ou non. 
+	
+	\dessin{48}
+	
+	Ainsi, l'expéditeur envoie un paquet, et attend la réponse du récepteur.
+	
+	Les protocoles de ce type sont dit \textbf{stop-and-wait} : l'expéditeur n'envoie aucun nouveau segment tant que le récepteur ne les a pas confirmés.
+	
+	\subsection{2.1 - Erreur d'acquis}
+	
+	Le problème est qu'on pourrait ne pas savoir comment interpréter la confirmation, car le message pourrait être erroné, ce qui peut conduire  des doublons de paquet ; un ACK ou un NAK corrompu sera détecté avec le checksum et jet, mais l'envoyeur ne sait pas s'il doit retransmettre ou non.
+	
+	La solution est d'insérer dans les paquets un numéro de séquence, et d'acquitter ce numéro. Ainsi, les paquets doublons seront jetés.
+	
+	
+	\dessin{49}
+	
+	\dessin{50}
+	
+	Le récepteur envoie un ACK s'il reçoit un paquet non corrompu qui a une mauvaise séquence car cela signifie qu'il n'a pas reçu l'ACK précédent, alors que le récepteur a bien eu le paquet.
+	
+	Dans le cas de l'envoi/réception d'un et un seul paquet  la fois, un identifiant modulo 2 suffit amplement, vu qu'il y a une alternance.
+	
+	\subsection{2.2 - Protocole sans NAK}
+	
+	Suppression des NAK, et lorsqu'on ACK, on ACK le dernier numéro qui était correct.
+	
+	\dessin{51}
+	
+	\dessin{52}
+	
+	\subsection{3.0 - Canal avec pertes et erreurs}
+	
+	On suppose un réseau avec des erreurs et des pertes de messages.
+
+	% Notes 4 - 3 - 2011
+	
+	La solution typique est un timeout pour le ACK ; lorsque  le temps s'est écoulé et si on n'a pas reçu d'accusé de réception, on renvoie le paquet.
+	La transmission peut être longue, au point que le timeout se déclenche : il y a risque de doublon, mais l'alternance évite ce problème.		
+	\dessin{53}		
+
+On a 4 éléments : checksum, numérotation paquet, numérotation accusé et timeout.
+	
+Dans une certaine mesure, on peut supprimer le numéro d'accusé ; lorsqu'on reçoit un paquet erroné, on n'envoie aucun accusé et on fait comme si le paquet n'était jamais parvenu. Cependant, il peut y avoir des doublons qui peuvent survenir et faire perdre des paquets.
+		
+	\dessin{54}
+	
+	\dessin{55}
+	
+	Ce protocole est appelé Alternating-bit protocol (1969).
+
+	\dessin{56}		
+	
+	Le protocole est correct si on suppose que les paquets envoyés sont reçus dans l'ordre, c'est-à-dire qu'un paquet envoyé avant un autre ne le dépasse jamais. Une solution est d'augmenter la durée des timeouts (mais problèmes de performances), une autre (meilleure) est d'utiliser plus de numéros.
+	
+	\dessin{57}
+	
+	
+	\paragraph{Performances du stop-and-wait}
+	
+	RTT : round-trip time, temps de propagation du paquet et de réception de l'accusé.
+	
+	\dessin{58}
+	
+	$\frac{R.RTT}{2}$ = produit débit-délai. R.RTT représente le nombre de bits en transit dans le réseau, ce que l'on peut "stocker" dedans. 
+	
+	Il peut en effet y avoir un décalage ; on peut avoir tout envoyé du côté de l'émetteur, mais n'avoir encore rien reçu chez le récepteur.
+	
+	On a l'utilisation chez l'expéditeur :
+	
+	$$U_{\text{sender}} = \frac{\frac{L}{R}}{RTT + \frac{L}{R}} = \frac{1}{1 + \frac{R . RTT}{L}}$$ 		 	
+Cependant, vu le caractère stop-and-wait, l'utilisation est très faible, le réseau physique est sous-exploité. 		 		\dessin{59} 		 		\subsection{Protocole avec pipeline} 		 		Pour augmenter les performances, on introduit du parallélisme, avec un pipeline : les paquets sont envoyés l'un après l'autre, sans attendre les accusés.
+
+			Deux grandes catégories de protocole de pipelining : le go-back-N et le selective repeat. 
+											
+	\subsubsection{Go-Back-N} 
+	\begin{itemize} 			
+	\item l'émetteur envoie jusqu'à $N$ paquets non accusés dans le pipeline, numérotés dans la fenêtre temporelle. 					
+	\item le récepteur est supposé peu élaboré, il n'a qu'un seul buffer. Du coup, s'il y a une perte, tout ce qui suit est ignoré. Il envoie des accusés cumulatifs ("tout ok jusqu'au paquet X").
+	\item l'émetteur a un timer, pour attendre jusqu'au dernier paquet, et renvoie ceux qui se sont perdus à partir du dernier accusé reçu.
+	\end{itemize}
+		
+			Pas optimal s'il y a des pertes dans le réseau.
+			
+			\dessin{61}
+			
+			Quelle taille de fenêtre maximum utiliser ? On ne dépasse jamais K comme numéro, sinon risque de confusion entre les numéros des paquets.
+			
+			On ne peut pas aller jusque K pour N, la limite est K - 1.
+			
+			
+			\dessin{60}
+
+			\dessin{62}
+			
+			\dessin{63}
+			
+			La taille de fenêtre maximale $N \leq K - 1$.
+			
+			
+			\subsubsection{Selective Repeat}
+			
+			\begin{itemize}
+				\item idem pour l'émetteur
+				\item le récepteur maintient un buffer et envoie des accusés de réception individualisés. S'il y a une perte, tout est bufferisé jusqu'à recevoir le paquet perdu.
+				\item l'émetteur a un timer pour chaque paquet. S'il expire sans qu'on ait reçu un accusé, on renvoie le paquet.
+			\end{itemize}
+		
+			\dessin{64}
+			
+			Plusieurs situations extrêmes sont possibles.				
+			
+			\dessin{65}
+			
+			\begin{itemize}
+				\item[1.] impossible, car l'émetteur a envoyé et confirmé des paquets qui n'ont pas été reçu par le récepteur. Idem pour dessin 2 : le récepteur a reçu et confirmé des paquets que le sender n'a pas encore envoyé.
+			
+				\item[3.] Possible dans le cas où le récepteur a accusé les paquets, mais où l'émetteur n'a encore rien reçu comme confirmation. Cas limite et pris en compte dans "pkt n in [rcvbase - N, rcvbase - 1], pour que l'émetteur ne soit pas indéfiniment bloqué.
+			
+				\item[4.] situation initiale.
+			\end{itemize}
+			
+			Avec une fenêtre de taille $\frac{K}{2}$, pas de problèmes car les fenêtres de réception et d'émission ne se chevaucheront pas.
+
+			\subsubsection{Taille de fenêtre maximale}
+			
+			Si $N_s$ est la taille de la fenêtre de l'émetteur, $N_r$ celle du récepteur et $K$ la taille de la séquence, il faut en général que $N_s + N_r \leq K$.
+			
+			\begin{itemize}
+				\item Go-back-N : $N_r = 1$, $N_s \leq K - 1$
+				\item Selective repeat : $N_s = N_r \leq \frac{K}{2}$
+				\item Alternating-bit : $K = 2$, $N_s = N_r = 1$
+			\end{itemize}
+		
+% Notes 11 - 3 - 2011
+
+\section{TCP}
+			
+	Protocole point-à-point (un émetteur et un récepteur), qui identifie tous les bytes par un numéro (protocole byte stream). Il y a du pipelining, avec une mémoire tampon et un contrôle de flux (afin que le récepteur ne soit pas surchargé). Il est full-duplex, la connexion est bidirectionnelle et les deux entités peuvent envoyer/recevoir en même temps. On définit le MSS, la taille maximale de segment.
+	
+	 Protocole orienté connexion. La fenêtre continuera à glisser, mais sa taille sera modifiée par TCP, en fonction de l'application.
+	 
+	  Le MSS est la quantité maximale de donnée venant de la couche applicative dans le segment, et non la taille maximale d'un segment TCP incluant les headers. Il est généralement déterminé par la trame (de couche lien) la plus large qui peut être envoyée par l'expéditeur, autrement dit le MTU (maximum transmission unit). Avec cette taille, on est sûr qu'un segment TCP rentrera dans une seule trame de la couche lien.
+	 
+	\subsection{Structure de segment}
+
+	 
+	 \dessin{67}
+	
+	Lors de la réception d'un byte, on le récrit (confirmation visuelle de
+la réception). Le ACK est cumulatif (comme go-back-N).
+	
+	Le numéro de séquence n'est pas celui de la séquence de segment, mais celui des bytes transmis. Par exemple, pour un fichier de 3200 bytes et pour un MSS de 1000 bytes, on aura les numéros de séquence 0, 1000, 2000 et 3000.
+	
+	L'aknowlegdement number est le prochain numéro de séquence attendu. Il est cumulatif ; par exemple, si pour un MSS de 1000 bytes on a les numéros 0 et 2000, le numéro d'ACK sera 1000. Le prochain numéro sera 2000 ou 3000, selon que l'implémentation jette les segments désordonnés ou les garde (ce qui est généralement le cas).
+	
+	\dessin{66}
+	
+	Si des segments arrivent dans le désordre, le protocole ne définit volontairement rien, c'est à l'implémenteur de gérer ce cas. Le fait de rien garder peut être utile selon les cas (par exemple beaucoup de connexions TCP).
+
+	\subsection{Timer}
+	
+	Le timer porte sur le plus ancien byte non acquité. Il faut qu'il soit plus long que le RTT, mais pas trop court (sinon il y aura des retransmissions inutiles) ni trop long (sinon réaction lente face à des pertes de segments).
+
+	Le problème est délicat pour TCP : il faudrait connaître la moyenne et l'écart-type des délais, afin d'estimer le RTT. TCP va effectuer des mesures et adapter dynamiquement son timer. Les mesures se font en envoyant un timestamp dans un paquet.
+
+	Les délais peuvent fortement varier, on va donc effectuer une moyenne exponentielle pondérée en temps réel de l'estimation.
+	
+	$$\text{RTT estimé} =  (1 - \alpha ) . \text{RTT estimé} + \alpha . \text{RTT échantillon}$$
+
+	Généralement, $\alpha = 0.125$. La variance sera aussi estimée, de la même façon.
+
+	A cette estimation on ajoute une marge de sécurité. Ainsi, plus il y a des grandes variations dans l'estimation du RTT, plus cette marque sera grande.
+	
+	On estime donc de combien le RTT échantillon dévie du RTT estimé.
+	
+	$$\text{RTT dévié} = (1 - \beta) . \text{RTT dévié} + \beta \vert \text{RTT échantillon} - \text{RTT estimé}\vert$$
+	
+	Généralement, $\beta = 0.25$. On a enfin l'intervalle d'un timeout :
+	$$\text{Intervalle timeout} = \text{RTT estimé} + 4 . \text{RTT dévié}$$
+	
+	\subsection{Fiabilité}
+	
+	TCP propose donc un service de transfert fiable, par dessus le service non fiable d'IP. Les segments sont pipelinés et lors de la réception d'un segment, les données sont retransmises. 
+	
+	S'il y a un timeout, on renvoi le segment qui l'a causé (mais seulement celui-là, alors que le go-back-n renvoi tout ce qu'il y a après) ; il n'y a qu'un seul timer de retransmission, qui correspond au plus vieux segment non acquitté.
+
+
+
+Voici ce qui se passe en fonction d'un évènement : 		 		
+\begin{itemize} 			
+\item Réception de données d'une application 			
+\begin{enumerate} 				
+	\item création d'un segment avec un numéro de séquence 				
+	\item démarre le timer si ce n'est déjà pas le cas 						\end{enumerate} 
+				
+\item Timeout 			
+\begin{enumerate} 				
+	\item retransmission du segment qui a causé le timeout 				
+	\item redémarrage du timer 			
+\end{enumerate} 	
+		
+\item Réception d'un ack : s'il y a des segments précédents non acquittés, 			
+\begin{enumerate} 				
+	\item mettre à jour ce qu'on sait acquitté 				
+	\item démarrer le timer s'il y a des segments en circulation 			\end{enumerate} 		
+\end{itemize} 		 		
+
+Une différence par rapport au go-back-N est que ce dernier acquitte le dernier paquet reçu dans l'ordre, alors que TCP acquitte la prochaine séquence attendue.
+
+
+Quelques scénarios :
+\dessin{68} 	
+		
+Génération d'ACK TCP : 		 		
+
+\dessinS{69}{.6}	 		
+
+
+La période de timeout peut être parfois longue, ce qui entraine un long délai avant le renvoi d'un paquet perdu. On introduit la retransmission rapide, qui consiste à renvoyer un segment avant que le timer n'expire.
+	
+	La détection se fait sur des doublons d'acquits : vu que l'expéditeur envoie plusieurs segments à la fois, il recevra plusieurs acquis. Si un segment est perdu, il aura nécessairement des doublons d'acquis.
+	
+	Ainsi, s'il reçoit trois fois le même ACK pour le même segment, on supposera que le segment d'après est perdu, et il sera donc renvoyé.
+	
+	\dessin{70}
+	
+	Les retransmissions sont donc déclenchées lorsque le timer arrive à expiration ou lorsqu'il y a des doublons d'acquis.
+
+
+	\subsection{Contrôle de flux}
+	
+	Le but du contrôle de flux est que l'expéditeur ne sature pas le buffer du récepteur en lui transmettant trop de données trop vite. C'est un service qui adapte la vitesse d'envoi de l'application expéditrice en fonction de la vitesse d'absorption de l'application réceptrice. 		 		
+
+
+Le côté expéditeur de la connexion TCP possède un buffer de réception, qui peut prendre du temps pour être lu par les applications. On va supposer que TCP rejette les segments dans le désordre
+	
+	\dessin{71}
+	
+	Le but de TCP est de ne jamais dépasser un buffer, il doit donc toujours vérifier
+	
+	$$\text{Dernier byte reçu} - \text{Dernier byte lu} \leq \text{Taille du buffer de réception}$$
+	
+	Initialement, la taille de la fenêtre est la taille du buffer. L'espace non utilisé dans le buffer définira la taille de la fenêtre de réception :
+	
+	$$\text{Taille de la fenêtre} = \text{Buffer de réception} - ( \text{Dernier byte reçu} - \text{Dernier byte lu}) $$
+	
+	
+	Le récepteur va donc informer l'émetteur de l'espace inutilisé de son buffer en incluant rwnd dans le header des segments qu'il lui envoie. L'émetteur va alors limiter le nombre de bytes non acquittés à rwnd.
+	
+	L'émetteur va garder comme variable le dernier byte envoyé et le dernier byte acquitté. La différence donne la quantité de données non acquittées qu'il a envoyé. Cette différence doit être inférieure à la taille de la fenêtre :
+	
+	$$\text{Dernier byte envoyé} - \text{Dernier byte acquité} \leq \text{Taille de la fenêtre}$$
+			
+	%Problèmes engendrés par la numérotation très fine de TCP : [dessin 3]
+	
+	Des problèmes surviennent quand les données passent par les sockets un byte à la fois ; ; un segment d'un byte est envoyé par RTT.
+	
+	Pour éviter ce trafic élevé pour peu de données, on utilise l'algorithme de Nagle, qui permet du groupage de bytes à envoyer. Cela permet de se protéger d'émetteurs qui envoient byte par byte. Ainsi, on envoie le premier byte, on bufferise le reste en attendant l'ACK puis en envoie tout.
+	
+	Cela ne suffit pas pour se protéger de mauvais receveurs, qui lisent le buffer byte par byte (et qui renverrait chaque fois un message).
+	
+	\dessinS{72}{.5}
+	
+	Pour y remédier, il y a l'algorithme de Clarke : si le buffer est à moitié vide ou s'il y a de la place pour un segment de taille maximum, on avertit l'émetteur (et non plus à chaque byte lu)
+	
+	Autre problème : soit un émetteur n'ayant rien à envoyer à un récepteur dont le buffer est plein. L'émetteur a donc une taille de fenêtre nulle.
+	
+	Si le récepteur vide (ou fait de la place) le buffer et qu'il n'a rien à envoyer à l'émetteur, ce dernier ne saura jamais qu'il peut envoyer des données.
+	
+	Pour parer  cette éventualité, on impose que l'émetteur continue à envoyer des segments d'un byte quand la taille de fenêtre du récepteur est nulle. Ainsi, s'il y a des ACKs, l'émetteur aura une taille de fenêtre à jour. 
+
+	\subsection{Gestion de la connexion}
+	
+	On doit initialiser des variables lors de l'établissement d'une connexion, par exemple le numéro de séquence du premier byte. TCP ne commence pas systématiquement au même numéro pour chaque connexion. Cela s'effectue lors des premières connexions, lors de la création des sockets.
+	
+	\dessin{73}
+	
+	La particularité de TCP est qu'on ferme chaque sens de connexion indépendamment. On évite ainsi les pertes.
+	
+	\dessin{74}
+	
+	\dessin{138}
+	
+	Si tous les ACK se perdent, on peut perdre la fin de la connexion ; pas de solution connue.
+	
+	Il vaut mieux attribuer des numéros de démarrage différents, sinon il peut y avoir un risque de confusion avec des anciens messages qui circuleraient sur le réseau.
+	
+	Exemple d'un SYN qui peut être reçu après la fermeture d'une connexion : cela peut conduire à des ambiguïtés dans une autre connexion. Il peut s'agir aussi d'un SYN fantôme, qui a été envoyé au début, mais qui est reçu bien plus tard.
+	
+	\dessin{76}
+	
+	Le risque disparaît si le paquet a un temps de vie court.
+	
+	% Notes 18 - 3 - 2011
+	
+	En pratique, on introduit un délai entre deux connexions TCP avec les mêmes IP et les mêmes ports, afin d'être sûr que tous les paquets du réseau "meurent". 
+	
+	On utilise alors des horloges, des compteurs de $k$ bits avec $k$ suffisamment grand pour tenir compte du temps de vie du paquet, et en définissant une zone interdite (on s'interdit une entrée par le haut et par le bas).
+	
+	\dessinS{77}{.5}
+	
+	Il faut être sûr que l'horloge soit suffisamment rapide pour ne pas brider le débit. La valeur de la clock sera le numéro de séquence. T est le temps de vie d'un paquet.
+	
+	Le rejeu des paquets peut venir d'une attaque, qui chercherait notamment à trouver le numéro : l'augmentation de la robustesse se fait au détriment de la sécurité
+	
+	Il peut y avoir aussi des inondations de SYN (SYN flood attack) : cela consiste à envoyer de nombreux SYNs sans continuer le 3-way handshake. Le serveur sera mis à mal avec de nombreuses connections TCP à moitié ouvertes et jamais utilisées.
+		
+\section{Principes de gestion de congestion}
+
+La gestion de congestion permet d'éviter de surcharger le réseau (alors que le contrôle de flux évite de surcharger les buffers d'un des protagonistes de la connexion). Des manifestations de congestions sont des pertes de paquets (les buffers des routeurs débordent) et des longs délais (vu que les buffers des routeurs sont remplis)
+
+	\subsection{Scénario 1}
+	Supposons que des hôtes envoient des données à un débit de $\lambda_{in}$ bytes par seconde à travers un lien de capacité $C$.
+	
+	\dessin{103}
+
+	Dans ce scénario, on a un routeur dont les buffers sont supposés de taille infinie.
+	
+	A gauche on a le débit du récepteur (per-connection throughput). On serait tenté d'envoyer à un débit de $\frac{C}{2}$, mais le graphe de droite montre que plus on s'en rapproche plus les délais sont longs.
+	
+	\dessin{102}
+	
+	Même
+dans un scénario idéal, on a une cause de congestion : \textbf{les délais sont plus grand à mesure que le débit se rapproche de la capacité du lien.}
+	
+	\subsection{Scénario 2}
+	
+	Supposons que les buffers des routeurs sont finis, donc des paquets seront perdus quand ils seront pleins. Supposons également que les connections sont fiables.
+	
+	De ce fait, on va distinguer deux débits : $\lambda_{in}$ le débit d'envoi des données dans le socket par l'application et $\lambda_{in}'$ le débit auquel sont envoyés les données ET les retransmissions (offered load).
+	
+	\dessin{104}
+	
+	Plusieurs scénarios sont possibles :
+	
+	\dessin{105}
+	
+	\begin{itemize}
+		\item[a)] Il n'y a pas de retransmissions
+		\item[b)] Supposons qu'un tiers des données est retransmis. On a donc, pour une capacité maximale $0.5 C$, $0.333 C$ données originales et $0.166 C$ données retransmises.
+	
+		On a un autre problème d'un réseau congestionné : \textbf{l'émetteur doit retransmettre pour compenser les paquets perdus à cause des dépassements de buffer.}
+	
+		\item[c) ] Supposons que le timeout expire trop tôt, c'est-à-dire que le paquet n'est pas perdu mais fortement retard. Il y a donc des retransmissions supplémentaires qui ne servent à rien.
+		
+		Autre conséquence d'un réseau congestionné : \textbf{des retransmissions inutiles font que le routeur utilise le lien pour des copies inutiles d'un paquet.}
+	\end{itemize}		
+	
+	\subsection{Scénario 3}
+
+	Supposons des routeurs aux buffers finis et avec de multiples chemins.
+	
+	On définit le throughput comme la moyenne de messages correctement délivrés. Le goodput est quant à lui le nombre moyen de bits utiles délivrés sur une période de temps.
+	
+	\dessin{106}
+	
+	\dessinS{107}{.5}
+	
+%goodput : ce qui ressort d'une connexion, throughput : ce qu'on y a envoyé (peut être plus grand que goodput).
+
+	Dans le premier routeur du flux rouge, une partie des paquets sera perdue, et sera écrasée par le flux vert dans le second routeur. A partir d'une certaine valeur, on utilise de plus en plus de ressources ($\lambda_{\text{in}}'$) pour une efficacité faible ($\lambda_{\text{out}}$).
+	
+	On a un nouveau symptôme d'un réseau congestionné : \textbf{quand un paquet est perdu sur un chemin, la capacité de transmissions qui a été utilisés par chacun des liens pour amener le paquet à sa perte a été gaspillé}.
+	
+
+	\subsection{Solutions de contrôle de congestion}
+	
+	Il y a deux grandes familles de solutions pour le contrôle de congestion :
+
+	\begin{itemize}
+		\item end-end congestion control (choix de TCP) : on observe les délais et les pertes, et on règle le débit (sans se fier au réseau) ;
+		\item network-assisted congestion control : on compte sur les routeurs pour qu'ils "marquent" les paquets pour signaler un début de congestion (choke packet).
+	\end{itemize}
+
+
+\section{Le contrôle de congestion de TCP}
+
+TCP va sans cesse aller à la limite de ce qui est possible dans le réseau. Il effectue un feedback implicite : si on reçoit des acquis, on est sûr qu'il n'y a pas de congestion ; s'il y a des pertes (donc pas d'acquittement), on n'est pas sûr que c'est une congestion (peut être un retard, une erreur binaire ou une congestion), mais on va quand même supposer que ça en est.
+
+
+TCP va utiliser la technique du "probing for bandwidth", soit augmenter le débit en monitorant l'arrivé d'acquis, jusqu'à avoir des pertes. S'il y en a une, il diminue le débit et recommence. La difficulté est de trouver les coefficients de montée et de descente du débit.
+
+\dessin{108}
+
+On va introduire une autre fenêtre, une fenêtre de congestion : le nombre de byte qu'on peut injecter sera borné par cette fenêtre (comme pour la gestion de flux). La taille de la fenêtre est exprimée en MSS (maximum segment size).
+
+Le débit sera fonction de la taille de la fenêtre :
+
+$$\text{Débit} = \frac{\text{Taille de la fenêtre}}{\text{RTT}}$$
+
+Pour rappel, les pertes sont détectées par les timers ou 3 doublons d'ACK. S'il y a des doublons, le receveur reçoit nécessairement les segments de l'émetteur (ce qui est bon signe). Si un timer expire, soit l'ACK perdu, soit les messages envoyés ne sont jamais arrivés, on est alors dans une situation grave (un timer ne devrait jamais connaître de congestion).
+
+Si un timer expire, on réduit la fenêtre de congestion à 1. Si on a des doublons d'acquis, on diminue la fenêtre de moitié.
+
+Si on reçoit des acquis (non doublon), on augmente la taille de la fenêtre : on l'agrandit d'abord exponentiellement (on la double ; slowstart phase), ensuite linéairement pour éviter les congestions lorsque la taille de la fenêtre dépasse un seuil. Pour augmenter exponentiellement, TCP va ajouter 1 à la fenêtre de congestion à chaque paquet reçu.
+
+On a intérêt à augmenter vite s'il y a de la bande passante dans le système, car le slowstart est vraiment lent (au début).
+
+S'il y a congestion, le seuil est défini comme la moitié de la fenêtre avant de la réduire.
+
+Dans la phase de gestion de congestion, lors de la réception d'un ACK, on augmente la taille de la fenêtre par une fraction de MSS, pour qu'au bout d'un RTT on augmente de 1 :  
+
+$$\text{Fenêtre de congestion} = \frac{MSS}{\text{Taille de la fenêtre}}$$
+
+Ce mode de fonctionnement est dit AIMD (Additive Increase Multiplicative Decrease), car on augmente la fenêtre de congestion d'un MSS par RTT	lors de la réception d'un ACK, et on la divise par deux lors d'une perte (ne provenant pas d'un timeout).
+
+Le fast recovery est la retransmission du temps perdu, on y reste tant qu'il n'est pas acquit.
+
+\dessinS{110}{.7}
+\dessinS{109}{.7}
+
+On a +3 MSS quand on va de congestion avoidance  fast recovery, car on sait qu'on a reçu 3 messages qui suivent ce qu'on a envoyé pour pouvoir continuer  avancer. Dès que le paquet incriminé est renvoyé et acquit, on effectue un saut (car les messages qui suivent sont consommés), on peut alors diminuer la taille de la fenêtre C'est un phénomène transitoire.
+
+	\subsection{Efficacité de TCP}
+
+Si on ignore le slow start, soit W la taille de la fenêtre lorsqu'une perte se produit. A ce moment, le goodput est de $\frac{W}{RTT}$. Juste après la perte, la taille de la fenêtre est divisée par deux ($ \frac{W}{2}$), le goodput aussi ($ \frac{0.5 W}{RTT}$).
+
+Le goodput moyen est donc de $ \frac{0.75 W}{RTT}$, la quantité de segments envoyés avant une perte est $\frac{3W}{4} \frac{W}{2}$.
+
+\dessin{111}
+	
+
+On a $p$ le taux de perte ; le nombre de MSS par cycle est
+
+$$ \frac{3W}{4} \frac{W}{2} = \frac{3W^2}{8} = \frac{1}{p}$$
+$$\Leftrightarrow W = \sqrt{\frac{8}{3p}}$$
+
+%$$p = \frac{1}{\frac{3W^2}{8}} \Leftrightarrow W = \sqrt{\frac{8}{3p}}$$
+
+Le goodput en MSS est la taille de la fenêtre divisée par RTT :
+
+$$\frac{\text{Fenêtre}}{RTT} = \frac{3W}{4RTT} =  \sqrt{\frac{3}{2}} \frac{1}{RTT \sqrt{p}}$$
+
+Le goodput moyen, en bps, est donc
+
+$$\sqrt{\frac{3}{2}} \frac{MSS}{RTT \sqrt{p}}$$
+
+A cause de l'algorithme de congestion, si le taux de perte augmente, le débit diminue.
+	
+Ce n'est pas valable s'il y a beaucoup de perte, car on fait l'hypothèse qu'on perd un paquet par cycle. De plus, le timer peut faire quitter le steady state, ce qui complique la formule.
+
+La taille du MSS est discutée lors de l'établissement de la connexion (le minimum de ce que les entités peuvent supporter). Le protocole impose une taille minimale.
+
+TCP n'aura pas de bonnes performances dans les réseaux très haut débit sur des longues distances. Il faudra des fenêtres très grandes, mais vu que l'augmentation est linéaire (car TCP ne connaît pas l'environnement), il faudra du temps pour profiter de toute la bande passante. De plus, il faudra que p soit très petit pour bénéficier de toute la vitesse.
+
+%débit = W / RTT (on envoie une fenêtre par RTT).
+
+%De plus, quand bien même on atteint W = 83 333, s'il y a une perte, on revient  W = 40 000. 	 		
+
+\subsection{Équité de TCP} 		 		
+
+TCP est équitable si les RTT sont les mêmes.		 						\dessin{112} 		 		
+Si les RTT sont différents, celui qui aura le plus grand sera lésé, ce qui est normal vu la formule ; le débit est inversement proportionnel au RTT. 	
+\dessin{113} 		 		
+Ce n'est pas aberrant de donner plus de débit à une connexion qui va plus loin, car on doit consommer plus de ressources sur plus de liens.
+	
+	Si un flux UDP et un flux TCP sont en compétition dans un buffer, UDP n'adaptera pas son débit tandis que TCP le fera. Ils vont tous les deux subir des pertes, mais TCP va vite lâcher car UDP est capable de tout prendre ; TCP va constamment diviser son débit par 2. Tant que les connexions TCP sont majoritaires, pas de problèmes
+	
+	On peut multiplier les connexions TCP pour chaque fois augmenter le débit
+	
+	$\longrightarrow$ l'équité bonne ou pas bonne selon les points de vue 		 	 
+	
+	
